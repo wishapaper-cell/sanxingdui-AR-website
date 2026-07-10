@@ -1,36 +1,29 @@
-// 面具生成后端代理(seedream 文生图 + 腾讯云混元3D 图生3D)
-// 流程:文字 → seedream 生图(三视图设计稿) → 混元3D 图生3D → GLB
+// 混元3D 面具生成后端代理
+// 流程:文字 → 混元生图(三视图设计稿) → 混元3D 图生3D → GLB
 // 异步接口:submit 拿 JobId → 轮询 query 直到 Status=DONE/FAIL
 //
-// 配置(.env,与本文件同目录):
+// 配置(.env):
 //   TENCENTCLOUD_SECRET_ID=AKIDxxxxxxxxxx
 //   TENCENTCLOUD_SECRET_KEY=xxxxxxxxxx
 //   PORT=3001
 //
-// 密钥获取:https://console.cloud.tencent.com/cam/capi
-// 官方 SecretId 以 AKID 开头,SecretKey 是 32 位字符串。
-// 若你拿到的是 sk- 开头的 key,可能是第三方代理,不能直接用于腾讯云官方签名。
+// 注意:用户提供的 sk-b0tt... 格式不像腾讯云官方 SecretId/SecretKey(官方是 AKID 开头 + 32 位 SecretKey)。
+// 若该 key 来自第三方 OpenAI 兼容代理,需改用代理 base URL,本服务默认按腾讯云官方签名调用。
+// 正确的密钥获取:https://console.cloud.tencent.com/cam/capi
 
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import crypto from 'crypto';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { Credential } from 'tencentcloud-sdk-nodejs/es/common/credential';
+import { Client as Ai3dClient } from 'tencentcloud-sdk-nodejs/es/services/ai3d/v20250513/ai3d_client';
+import { Client as HunyuanClient } from 'tencentcloud-sdk-nodejs/es/services/hunyuan/v20230901/hunyuan_client';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-dotenv.config({ path: join(__dirname, '.env') });
+dotenv.config();
 
 const SECRET_ID = process.env.TENCENTCLOUD_SECRET_ID || '';
 const SECRET_KEY = process.env.TENCENTCLOUD_SECRET_KEY || '';
 const REGION = process.env.TENCENTCLOUD_REGION || 'ap-guangzhou';
 const PORT = process.env.PORT || 3001;
-
-// 火山引擎方舟 API(seedream 文生图)
-// 文档:https://www.volcengine.com/docs/82379/1541523
-const ARK_API_KEY = process.env.ARK_API_KEY || '';
-const ARK_MODEL = process.env.ARK_SEEDREAM_MODEL || 'doubao-seedream-4-0-250828';
 
 if (!SECRET_ID || !SECRET_KEY) {
   console.error('\n[启动失败] 未配置 TENCENTCLOUD_SECRET_ID / TENCENTCLOUD_SECRET_KEY');
@@ -38,100 +31,25 @@ if (!SECRET_ID || !SECRET_KEY) {
   process.exit(1);
 }
 
-// ===== 腾讯云 API 3.0 签名(TC3-HMAC-SHA256)=====
-// 文档:https://cloud.tencent.com/document/api/213/30654
-function sha256Hex(msg) {
-  return crypto.createHash('sha256').update(msg, 'utf8').digest('hex');
-}
-function hmacSha256(key, msg) {
-  return crypto.createHmac('sha256', key).update(msg, 'utf8').digest();
-}
-function hmacSha256Hex(key, msg) {
-  return crypto.createHmac('sha256', key).update(msg, 'utf8').digest('hex');
-}
-
-/**
- * 调用腾讯云 API
- * @param {string} service - 服务名,如 ai3d / hunyuan
- * @param {string} host - 域名,如 ai3d.tencentcloudapi.com
- * @param {string} version - API 版本,如 2025-05-13
- * @param {string} action - 接口名,如 SubmitHunyuanTo3DProJob
- * @param {object} payload - 请求参数对象
- */
-async function callTencentAPI(service, host, version, action, payload) {
-  const timestamp = Math.floor(Date.now() / 1000);
-  const date = new Date(timestamp * 1000).toISOString().slice(0, 10); // UTC YYYY-MM-DD
-  const payloadStr = JSON.stringify(payload);
-
-  // 1. 拼接规范请求串 CanonicalRequest
-  const httpRequestMethod = 'POST';
-  const canonicalUri = '/';
-  const canonicalQueryString = '';
-  const canonicalHeaders = `content-type:application/json; charset=utf-8\nhost:${host}\nx-tc-action:${action.toLowerCase()}\n`;
-  const signedHeaders = 'content-type;host;x-tc-action';
-  const hashedRequestPayload = sha256Hex(payloadStr);
-  const canonicalRequest = `${httpRequestMethod}\n${canonicalUri}\n${canonicalQueryString}\n${canonicalHeaders}\n${signedHeaders}\n${hashedRequestPayload}`;
-
-  // 2. 拼接签名串 StringToSign
-  const algorithm = 'TC3-HMAC-SHA256';
-  const hashedCanonicalRequest = sha256Hex(canonicalRequest);
-  const credentialScope = `${date}/${service}/tc3_request`;
-  const stringToSign = `${algorithm}\n${timestamp}\n${credentialScope}\n${hashedCanonicalRequest}`;
-
-  // 3. 计算签名 Signature
-  const secretDate = hmacSha256(('TC3' + SECRET_KEY), date);
-  const secretService = hmacSha256(secretDate, service);
-  const secretSigning = hmacSha256(secretService, 'tc3_request');
-  const signature = hmacSha256Hex(secretSigning, stringToSign);
-
-  // 4. 拼接 Authorization
-  const authorization = `${algorithm} Credential=${SECRET_ID}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
-
-  // 发请求
-  const headers = {
-    'Authorization': authorization,
-    'Content-Type': 'application/json; charset=utf-8',
-    'Host': host,
-    'X-TC-Action': action,
-    'X-TC-Timestamp': String(timestamp),
-    'X-TC-Version': version,
-    'X-TC-Region': REGION,
-  };
-
-  const resp = await fetch(`https://${host}`, {
-    method: 'POST',
-    headers,
-    body: payloadStr,
-  });
-  const json = await resp.json();
-  const response = json.Response;
-  // 腾讯云错误响应:Response.Error.Code + Response.Error.Message
-  if (response?.Error) {
-    const e = new Error(`[${response.Error.Code}] ${response.Error.Message}`);
-    e.code = response.Error.Code;
-    e.requestId = response.RequestId;
-    throw e;
-  }
-  return response;
-}
+// 构造认证和客户端(endpoint 已由各 Client 构造函数内置,profile 用 plain object 即可)
+const cred = new Credential(SECRET_ID, SECRET_KEY);
+const ai3dClient = new Ai3dClient({ credential: cred, region: REGION });
+const hunyuanClient = new HunyuanClient({ credential: cred, region: REGION });
 
 // 通用轮询:submit → 拿 JobId → 循环 query 直到 Status=DONE/FAIL
-// submitArgs: [service, host, version, action, payload]
-// queryAction: 查询接口名,如 'QueryHunyuanImageJob'
-async function submitAndPoll(submitArgs, queryAction, { intervalMs = 3000, timeoutMs = 180000 } = {}) {
-  const [service, host, version, submitAction, submitPayload] = submitArgs;
-  const submitResp = await callTencentAPI(service, host, version, submitAction, submitPayload);
+async function submitAndPoll(submitFn, submitReq, queryFn, { intervalMs = 3000, timeoutMs = 180000 } = {}) {
+  const submitResp = await submitFn(submitReq);
   const jobId = submitResp.JobId;
   if (!jobId) {
-    const err = submitResp.Error;
+    const err = submitResp.Error || submitResp.Response?.Error;
     throw new Error(`提交任务失败: ${err?.Message || JSON.stringify(submitResp)}`);
   }
-  console.log(`  [submit] ${submitAction} JobId=${jobId}, 开始轮询...`);
+  console.log(`  [submit] JobId=${jobId}, 开始轮询...`);
 
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     await new Promise(r => setTimeout(r, intervalMs));
-    const q = await callTencentAPI(service, host, version, queryAction, { JobId: jobId });
+    const q = await queryFn({ JobId: jobId });
     const status = q.Status;
     if (status === 'DONE') {
       console.log(`  [poll] JobId=${jobId} DONE (${Math.round((Date.now() - start) / 1000)}s)`);
@@ -148,195 +66,74 @@ async function submitAndPoll(submitArgs, queryAction, { intervalMs = 3000, timeo
   throw new Error(`任务超时(${timeoutMs / 1000}s),JobId=${jobId}`);
 }
 
-// ===== 路由 =====
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
 
+// 健康检查
 app.get('/api/health', (req, res) => {
-  res.json({ ok: true, secretIdPrefix: SECRET_ID.slice(0, 8), arkModel: ARK_MODEL });
+  res.json({ ok: true, secretIdPrefix: SECRET_ID.slice(0, 8) });
 });
 
-// seedream 文生图(火山引擎方舟) → 返回图片 URL(24小时有效)
-// 文档:https://www.volcengine.com/docs/82379/1541523
-async function generateImageBySeedream(prompt) {
-  if (!ARK_API_KEY) throw new Error('未配置 ARK_API_KEY(请检查 .env)');
-  console.log('[文生图] 调用 seedream:', ARK_MODEL, '| prompt:', prompt.slice(0, 60) + '...');
-
-  const resp = await fetch('https://ark.cn-beijing.volces.com/api/v3/images/generations', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${ARK_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: ARK_MODEL,
-      prompt,
-      size: '2048x2048',
-      response_format: 'url',
-      watermark: false,
-    }),
-  });
-  const data = await resp.json();
-  if (!resp.ok || data.error) {
-    const msg = data.error?.message || `HTTP ${resp.status}`;
-    console.error('[文生图] seedream 错误:', msg);
-    throw new Error(msg);
-  }
-  const imgUrl = data.data?.[0]?.url;
-  if (!imgUrl) {
-    console.error('[文生图] 返回结构异常:', JSON.stringify(data));
-    throw new Error('生图成功但未取到图片 URL');
-  }
-  console.log('[文生图] 完成:', imgUrl.slice(0, 80) + '...');
-  return imgUrl;
-}
-
-// 多视角生图:用同一描述 + 相同 seed,生成 front(主图) + left / right / back 四个视角
-// 混元3D 的 MultiViewImages 是辅助输入,必须配合 ImageUrl(主图)使用
-// ViewType 只支持 back / left / right
-async function generateMultiViewImages(userPrompt) {
-  const baseStyle = '青铜面具, 三星堆古蜀风格, 纯白背景, 高细节, 居中对称, 单一面具, 概念设计图, 3D 渲染';
-  const views = [
-    { key: 'front', prompt: `${userPrompt}, ${baseStyle}, 正面视图, 正面面具, 正视图` },
-    { key: 'left',  prompt: `${userPrompt}, ${baseStyle}, 左侧视图, 左侧面具, 侧面朝左` },
-    { key: 'right', prompt: `${userPrompt}, ${baseStyle}, 右侧视图, 右侧面具, 侧面朝右` },
-    { key: 'back',  prompt: `${userPrompt}, ${baseStyle}, 后视图, 背面视图, 面具背面` },
-  ];
-  const seed = Math.floor(Math.random() * 1000000);
-
-  console.log(`[多视角] 生成 4 个视角(front/left/right/back),seed=${seed}`);
-  const results = await Promise.all(views.map(async (v) => {
-    const url = await generateImageBySeedreamWithSeed(v.prompt, seed);
-    return { view: v.key, url };
-  }));
-  return results;
-}
-
-// 带 seed 的生图(保证多视角造型一致)
-async function generateImageBySeedreamWithSeed(prompt, seed) {
-  if (!ARK_API_KEY) throw new Error('未配置 ARK_API_KEY(请检查 .env)');
-
-  const resp = await fetch('https://ark.cn-beijing.volces.com/api/v3/images/generations', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${ARK_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: ARK_MODEL,
-      prompt,
-      size: '2048x2048',
-      response_format: 'url',
-      watermark: false,
-      seed,
-    }),
-  });
-  const data = await resp.json();
-  if (!resp.ok || data.error) {
-    const msg = data.error?.message || `HTTP ${resp.status}`;
-    throw new Error(`seedream 生图失败(${prompt.slice(0, 30)}): ${msg}`);
-  }
-  const imgUrl = data.data?.[0]?.url;
-  if (!imgUrl) throw new Error('生图成功但未取到图片 URL');
-  return imgUrl;
-}
-
-// 文生图路由:文字 → seedream → 单张面具正面图URL
+// 文生图:文字 → 混元生图 → 面具三视图设计稿
 app.post('/api/text-to-image', async (req, res) => {
   try {
     const userPrompt = (req.body?.prompt || '').trim();
     if (!userPrompt) return res.status(400).json({ error: 'prompt 不能为空' });
-    const prompt = `${userPrompt}, 青铜面具正面图, 正面视角, 居中对称, 青铜材质, 三星堆古蜀风格, 纯白背景, 高细节, 单一面具, 概念设计图`;
-    const url = await generateImageBySeedream(prompt);
-    res.json({ url, prompt, model: ARK_MODEL });
+
+    // 三视图 prompt 模板:强制白底 + 三视图布局 + 青铜面具风格
+    const prompt = `${userPrompt}, 面具, 三视图设计稿, 正视图 侧视图 俯视图, 青铜材质, 三星堆古蜀风格, 纯白背景, 高细节, 居中对称, 概念设计图`;
+    console.log('[文生图] 提交:', prompt);
+
+    const resp = await submitAndPoll(
+      (r) => hunyuanClient.SubmitHunyuanImageJob(r),
+      { Prompt: prompt },
+      (r) => hunyuanClient.QueryHunyuanImageJob(r),
+      { intervalMs: 2000, timeoutMs: 60000 }
+    );
+    // 混元生图返回:Response.Images[0].Url 或 Response.ResultImage
+    const imgUrl = resp.Images?.[0]?.Url || resp.ResultImage || resp.ImageUrl;
+    if (!imgUrl) {
+      console.error('[文生图] 返回结构异常:', JSON.stringify(resp));
+      return res.status(500).json({ error: '生图成功但未取到图片 URL', detail: resp });
+    }
+    console.log('[文生图] 完成:', imgUrl);
+    res.json({ url: imgUrl, prompt });
   } catch (e) {
     console.error('[文生图] 错误:', e.message);
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: e.message, code: e.code });
   }
 });
 
-// 多视角生图路由:文字 → seedream × 3 → left/right/back 三张图URL
-app.post('/api/text-to-image-multi', async (req, res) => {
-  try {
-    const userPrompt = (req.body?.prompt || '').trim();
-    if (!userPrompt) return res.status(400).json({ error: 'prompt 不能为空' });
-    const views = await generateMultiViewImages(userPrompt);
-    res.json({ views, model: ARK_MODEL });
-  } catch (e) {
-    console.error('[多视角生图] 错误:', e.message);
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// 图生3D:支持单图(ImageUrl)或多视角(MultiViewImages)
-// inputs:字符串URL(单图) 或 [{view, url}, ...](多视角)
-// 优先用 Pro 专业版,资源不足时 fallback 到 Rapid 极速版
-// 多视角需要 3.1 版本(top/bottom/left_front/right_front 也要 3.1)
-async function imageTo3D(inputs) {
-  // 构造 payload
-  // inputs:字符串URL(单图) 或 [{view, url}, ...](多视角,必须含 front 作为主图)
-  const isMulti = Array.isArray(inputs);
-  const buildPayload = (model) => {
-    if (isMulti) {
-      // 主图用 ImageUrl(front),其余用 MultiViewImages(back/left/right)
-      const front = inputs.find(v => v.view === 'front');
-      if (!front) throw new Error('多视角输入必须包含 front 视角作为主图');
-      const mv = inputs
-        .filter(v => v.view !== 'front')
-        .map(v => ({ ViewType: v.view, ViewImageUrl: v.url }));
-      return { Model: model, ImageUrl: front.url, MultiViewImages: mv };
-    }
-    return { Model: model, ImageUrl: inputs };
-  };
-
-  const variants = [
-    { submit: 'SubmitHunyuanTo3DProJob', query: 'QueryHunyuanTo3DProJob', label: 'Pro专业版' },
-    { submit: 'SubmitHunyuanTo3DRapidJob', query: 'QueryHunyuanTo3DRapidJob', label: 'Rapid极速版' },
-  ];
-
-  let lastErr;
-  for (const v of variants) {
-    try {
-      const payload = buildPayload('3.1'); // 多视角必须用 3.1
-      console.log(`[图生3D] 尝试 ${v.label} (3.1):`, isMulti ? `多视角 x${inputs.length}` : '单图');
-      const resp = await submitAndPoll(
-        ['ai3d', 'ai3d.tencentcloudapi.com', '2025-05-13', v.submit, payload],
-        v.query,
-        // 多视角融合比单图慢,超时放宽到 8 分钟
-        { intervalMs: 5000, timeoutMs: isMulti ? 480000 : 240000 }
-      );
-      const files = resp.ResultFile3Ds || [];
-      const glb = files.find(f => f.Type === 'GLB');
-      const obj = files.find(f => f.Type === 'OBJ');
-      const result = {
-        glbUrl: glb?.Url,
-        objUrl: obj?.Url,
-        previewUrl: glb?.PreviewImageUrl || files[0]?.PreviewImageUrl,
-        allFiles: files,
-        version: v.label,
-        inputMode: isMulti ? 'multiview' : 'single',
-      };
-      if (!result.glbUrl) {
-        throw new Error(`${v.label} 生成成功但无 GLB 输出: ${JSON.stringify(resp).slice(0, 300)}`);
-      }
-      console.log(`[图生3D] ${v.label} 完成:`, result.glbUrl.slice(0, 80) + '...');
-      return result;
-    } catch (e) {
-      console.warn(`[图生3D] ${v.label} 失败:`, e.message);
-      lastErr = e;
-      if (e.code !== 'ResourceInsufficient') throw e;
-    }
-  }
-  throw lastErr || new Error('图生3D 全部失败');
-}
-
-// 单图图生3D 路由(向后兼容)
+// 图生3D:图片 URL → 混元3D → GLB
 app.post('/api/image-to-3d', async (req, res) => {
   try {
     const imageUrl = (req.body?.imageUrl || '').trim();
     if (!imageUrl) return res.status(400).json({ error: 'imageUrl 不能为空' });
-    const result = await imageTo3D(imageUrl);
+
+    console.log('[图生3D] 提交:', imageUrl);
+    const resp = await submitAndPoll(
+      (r) => ai3dClient.SubmitHunyuanTo3DProJob(r),
+      { ImageUrl: imageUrl },
+      (r) => ai3dClient.QueryHunyuanTo3DProJob(r),
+      { intervalMs: 3000, timeoutMs: 240000 } // 3D 生成较慢,给 4 分钟
+    );
+
+    // ResultFile3Ds 数组,挑 GLB
+    const files = resp.ResultFile3Ds || [];
+    const glb = files.find(f => f.Type === 'GLB');
+    const obj = files.find(f => f.Type === 'OBJ');
+    const result = {
+      glbUrl: glb?.Url,
+      objUrl: obj?.Url,
+      previewUrl: glb?.PreviewImageUrl || files[0]?.PreviewImageUrl,
+      allFiles: files,
+    };
+    if (!result.glbUrl) {
+      console.error('[图生3D] 无 GLB 输出:', JSON.stringify(resp));
+      return res.status(500).json({ error: '3D 生成成功但无 GLB 输出', detail: resp });
+    }
+    console.log('[图生3D] 完成:', result.glbUrl);
     res.json(result);
   } catch (e) {
     console.error('[图生3D] 错误:', e.message);
@@ -344,41 +141,38 @@ app.post('/api/image-to-3d', async (req, res) => {
   }
 });
 
-// 多视角图生3D 路由:接收 views 数组
-app.post('/api/image-to-3d-multi', async (req, res) => {
-  try {
-    const views = req.body?.views;
-    if (!Array.isArray(views) || views.length === 0) {
-      return res.status(400).json({ error: 'views 不能为空,需为 [{view, url}, ...]' });
-    }
-    const result = await imageTo3D(views);
-    res.json(result);
-  } catch (e) {
-    console.error('[多视角图生3D] 错误:', e.message);
-    res.status(500).json({ error: e.message, code: e.code });
-  }
-});
-
-// 一站式:文字 → seedream 多视角生图 → 混元3D 多视角生3D → GLB(一个模型)
+// 一站式:文字 → 图 → 3D(单次请求,内部串行)
 app.post('/api/generate-mask', async (req, res) => {
   try {
     const userPrompt = (req.body?.prompt || '').trim();
     if (!userPrompt) return res.status(400).json({ error: 'prompt 不能为空' });
 
-    console.log('[一站式] 步骤1:seedream 多视角生图(front/left/right/back)');
-    const views = await generateMultiViewImages(userPrompt);
-    console.log('[一站式] 4 个视角生图完成');
+    const prompt = `${userPrompt}, 面具, 三视图设计稿, 正视图 侧视图 俯视图, 青铜材质, 三星堆古蜀风格, 纯白背景, 高细节, 居中对称, 概念设计图`;
+    console.log('[一站式] 文生图提交:', prompt);
+    const imgResp = await submitAndPoll(
+      (r) => hunyuanClient.SubmitHunyuanImageJob(r),
+      { Prompt: prompt },
+      (r) => hunyuanClient.QueryHunyuanImageJob(r),
+      { intervalMs: 2000, timeoutMs: 60000 }
+    );
+    const imageUrl = imgResp.Images?.[0]?.Url || imgResp.ResultImage || imgResp.ImageUrl;
+    if (!imageUrl) return res.status(500).json({ error: '生图未取到 URL', detail: imgResp });
+    console.log('[一站式] 文生图完成:', imageUrl);
 
-    console.log('[一站式] 步骤2:混元3D 多视角图生3D(3.1)');
-    const d3Result = await imageTo3D(views);
-    console.log('[一站式] 完成:', d3Result.glbUrl);
+    console.log('[一站式] 图生3D 提交');
+    const d3Resp = await submitAndPoll(
+      (r) => ai3dClient.SubmitHunyuanTo3DProJob(r),
+      { ImageUrl: imageUrl },
+      (r) => ai3dClient.QueryHunyuanTo3DProJob(r),
+      { intervalMs: 3000, timeoutMs: 240000 }
+    );
+    const files = d3Resp.ResultFile3Ds || [];
+    const glb = files.find(f => f.Type === 'GLB');
+    console.log('[一站式] 完成:', glb?.Url);
     res.json({
-      previewUrl: views[0]?.url, // 第一个视角作为预览
-      views,                      // 所有视角图
-      glbUrl: d3Result.glbUrl,
-      allFiles: d3Result.allFiles,
-      version: d3Result.version,
-      inputMode: d3Result.inputMode,
+      previewUrl: imageUrl,
+      glbUrl: glb?.Url,
+      allFiles: files,
     });
   } catch (e) {
     console.error('[一站式] 错误:', e.message);

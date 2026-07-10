@@ -93,13 +93,6 @@
   }
   #gen-panel input[type="text"]::placeholder { color: #6b7280; }
   #gen-panel input[type="text"]:focus { outline: none; border-color: #f59e0b; }
-  #gen-panel input[type="file"] { display: none; }
-  #gen-panel .upload-label {
-    padding: 8px 12px; background: rgba(245,158,11,0.15);
-    color: #f59e0b; border: 1px solid #f59e0b; border-radius: 6px;
-    font-size: 13px; cursor: pointer; white-space: nowrap;
-  }
-  #gen-panel .upload-label:hover { background: rgba(245,158,11,0.25); }
   #gen-panel button {
     padding: 8px 16px; background: linear-gradient(135deg,#f59e0b,#d97706);
     color: #fff; border: none; border-radius: 6px; font-size: 13px;
@@ -196,26 +189,21 @@
   <button id="skip-btn">跳过认主(兜底)</button>
   <button id="start-btn">启动 AR 视觉系统</button>
 
-  <!-- AI 面具生成面板(文字→seedream三视角→混元3D多视角融合→戴脸上) -->
+  <!-- AI 面具生成面板(文字→三视图→3D→戴脸上) -->
   <div id="gen-panel">
-    <div class="title">AI 面具生成(三视角 → 多视角融合 3D)</div>
+    <div class="title">AI 面具生成(混元3D)</div>
     <div class="row">
-      <input type="text" id="gen-prompt" placeholder="输入面具描述,如:青铜纵目面具,三星堆风格" maxlength="200">
-      <button id="gen-btn">生成面具</button>
+      <input type="text" id="gen-prompt" placeholder="描述你的面具,如:纵目青铜面具" maxlength="80">
+      <button id="gen-btn">生成</button>
     </div>
     <div class="progress" id="gen-progress">
       <div id="gen-status">准备中...</div>
       <div class="bar"><i id="gen-bar"></i></div>
     </div>
     <div class="preview" id="gen-preview">
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;">
-        <img id="gen-view-front" alt="正视图" style="width:100%;">
-        <img id="gen-view-left" alt="左视图" style="width:100%;">
-        <img id="gen-view-right" alt="右视图" style="width:100%;">
-        <img id="gen-view-back" alt="后视图" style="width:100%;">
-      </div>
+      <img id="gen-preview-img" alt="面具三视图预览">
     </div>
-    <div class="hint" id="gen-hint">流程:文字描述 → seedream 生成四视角图(正/左/右/后) → 混元3D 多视角融合生成一个 GLB → 自动戴到脸上。全程约 3-6 分钟。需先启动后端 <code>npm run server</code>。</div>
+    <div class="hint" id="gen-hint">流程:文字 → 混元生图(三视图) → 混元3D 生成 GLB → 自动戴到脸上。耗时约 1-3 分钟。需先启动后端 <code>npm run server</code>。</div>
   </div>
 </div>
 
@@ -247,18 +235,6 @@ const flashEl = document.getElementById('flash');
 const startBtn = document.getElementById('start-btn');
 const toggleLm = document.getElementById('toggle-landmarks');
 const toggleMesh = document.getElementById('toggle-mesh');
-// AI 面具生成面板引用
-const genBtn = document.getElementById('gen-btn');
-const genPrompt = document.getElementById('gen-prompt');
-const genProgress = document.getElementById('gen-progress');
-const genStatus = document.getElementById('gen-status');
-const genBar = document.getElementById('gen-bar');
-const genPreview = document.getElementById('gen-preview');
-const genViewFront = document.getElementById('gen-view-front');
-const genViewLeft = document.getElementById('gen-view-left');
-const genViewRight = document.getElementById('gen-view-right');
-const genViewBack = document.getElementById('gen-view-back');
-const genHint = document.getElementById('gen-hint');
 const st = {
   state: document.getElementById('st-state'),
   stage: document.getElementById('st-stage'),
@@ -1645,139 +1621,6 @@ startBtn.addEventListener('click', async () => {
     startBtn.textContent = '重试';
     console.error(e);
   }
-});
-
-// ===== AI 面具生成(文字 → 混元生图三视图 → 混元3D 图生3D → GLB 戴脸上)=====
-let customMaskLoaded = false; // 是否已加载自定义 GLB 面具
-const gltfLoader = new GLTFLoader();
-
-function setGenStatus(text, type = 'info') {
-  genStatus.textContent = text;
-  genStatus.className = type === 'err' ? 'status-err' : type === 'ok' ? 'status-ok' : '';
-}
-function setGenBar(pct) {
-  genBar.style.width = Math.max(0, Math.min(100, pct)) + '%';
-}
-function setGenActive(active) {
-  genProgress.classList.toggle('active', active);
-  genBtn.disabled = active;
-}
-
-// 把 GLB scene 挂到 maskGroup,替换程序化面具
-// 1. 隐藏 maskGroup 现有 children(face/rust/eyes/ears/mouth/rune/scan)
-// 2. 计算 GLB bbox,缩放到 size≈1.2(匹配现有面具视觉大小),居中
-// 3. 加到 maskGroup,自动跟随脸部 transform
-function attachCustomMask(glbScene) {
-  // 隐藏现有程序化面具部件
-  for (const child of three.maskGroup.children) {
-    if (child.visible !== undefined) child.visible = false;
-  }
-
-  // 计算 bbox
-  const box = new THREE.Box3().setFromObject(glbScene);
-  const size = new THREE.Vector3();
-  const center = new THREE.Vector3();
-  box.getSize(size);
-  box.getCenter(center);
-
-  // 归一化:最大边缩放到 1.2,居中到原点
-  const maxDim = Math.max(size.x, size.y, size.z, 0.001);
-  const scale = 1.2 / maxDim;
-  glbScene.scale.setScalar(scale);
-  // 居中:缩放后再减去中心
-  glbScene.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
-
-  // GLB 默认朝向可能不对,大多数生成器输出 +Y 朝上、-Z 朝前
-  // 面具需要 +Z 朝前(对着镜头),这里旋转使其正面朝前
-  glbScene.rotation.y = Math.PI; // 绕 Y 转 180°,让正面朝向镜头(根据实际效果调)
-
-  three.maskGroup.add(glbScene);
-  customMaskLoaded = true;
-  st.render.textContent = '自定义面具(GLB)';
-  console.log('[GenMask] 自定义面具已加载,scale=', scale, 'size=', size);
-}
-
-genBtn.addEventListener('click', async () => {
-  const prompt = genPrompt.value.trim();
-  if (!prompt) {
-    setGenStatus('请输入面具描述', 'err');
-    return;
-  }
-
-  setGenActive(true);
-  genPreview.classList.remove('active');
-  setGenBar(5);
-  setGenStatus('步骤1/2:seedream 生成三视角图(左/右/后,约30-60秒)...');
-
-  try {
-    // 一站式接口:文字 → seedream 三视角生图 → 混元3D 多视角融合生 3D → GLB
-    let progress = 10;
-    const progressTimer = setInterval(() => {
-      progress = Math.min(progress + 1, 75);
-      setGenBar(progress);
-      if (progress < 30) setGenStatus('seedream 正在生成三视角图...');
-      else if (progress < 60) setGenStatus('混元3D 正在多视角融合生成 3D 模型(约2-4分钟)...');
-      else setGenStatus('等待混元3D 完成...');
-    }, 2000);
-
-    const resp = await fetch('/api/generate-mask', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt }),
-    });
-    const data = await resp.json();
-    clearInterval(progressTimer);
-
-    if (!resp.ok) throw new Error(data.error || '生成失败');
-
-    // 显示四视角预览图
-    if (data.views && data.views.length > 0) {
-      data.views.forEach(v => {
-        if (v.view === 'front') genViewFront.src = v.url;
-        else if (v.view === 'left') genViewLeft.src = v.url;
-        else if (v.view === 'right') genViewRight.src = v.url;
-        else if (v.view === 'back') genViewBack.src = v.url;
-      });
-      genPreview.classList.add('active');
-    }
-
-    setGenBar(85);
-    setGenStatus('3D 模型已生成(多视角融合),正在加载到脸上...');
-
-    // GLTFLoader 加载 GLB
-    const glb = await new Promise((resolve, reject) => {
-      gltfLoader.load(
-        data.glbUrl,
-        (gltf) => resolve(gltf),
-        (progress) => {
-          if (progress.total > 0) {
-            const pct = 85 + (progress.loaded / progress.total) * 15;
-            setGenBar(pct);
-          }
-        },
-        (err) => reject(new Error('GLB 加载失败: ' + (err.message || err)))
-      );
-    });
-
-    // 挂到 maskGroup 跟随脸部
-    if (!three) throw new Error('3D 系统未初始化,请先启动 AR');
-    attachCustomMask(glb.scene);
-
-    setGenBar(100);
-    setGenStatus('面具已戴到脸上!转头测试跟随效果', 'ok');
-    setGenActive(false);
-    setGenBar(0);
-  } catch (e) {
-    console.error('[GenMask] 错误:', e);
-    setGenStatus('失败: ' + e.message, 'err');
-    setGenActive(false);
-    setGenBar(0);
-  }
-});
-
-// 回车也能触发生成
-genPrompt.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !genBtn.disabled) genBtn.click();
 });
 </script>
 </body>
