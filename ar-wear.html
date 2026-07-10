@@ -1,0 +1,1526 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>三星堆 AR 试戴</title>
+<script>
+if (location.protocol === 'file:') {
+  location.replace('http://127.0.0.1:3001/ar-wear.html' + location.search + location.hash);
+}
+</script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: -apple-system, 'PingFang SC', sans-serif; color: #fff; }
+#video { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); z-index: 0; }
+#three-canvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
+#debug-canvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 4; pointer-events: none; display: none; }
+.overlay { position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.85); transition: opacity 0.5s; }
+.overlay.hidden { opacity: 0; pointer-events: none; }
+.spinner { width: 52px; height: 52px; border: 4px solid rgba(255,193,7,0.15); border-top-color: #ffc107; border-radius: 50%; animation: spin 0.9s linear infinite; margin-bottom: 22px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.step-text { font-size: 17px; color: #ccc; margin-bottom: 8px; }
+.step-detail { font-size: 13px; color: #888; }
+.error-box { background: rgba(244,67,54,0.12); border: 1px solid rgba(244,67,54,0.4); border-radius: 10px; padding: 18px 24px; max-width: 480px; text-align: center; }
+.error-title { color: #f44336; font-size: 16px; margin-bottom: 8px; font-weight: 600; }
+.error-msg { color: #aaa; font-size: 13px; margin-bottom: 14px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; max-height: 200px; overflow-y: auto; }
+.retry-btn { background: linear-gradient(135deg, #ffc107, #ff9800); color: #000; border: none; padding: 10px 28px; border-radius: 22px; font-size: 14px; font-weight: 600; cursor: pointer; }
+#hud { position: fixed; top: 16px; left: 16px; z-index: 20; font-size: 13px; color: #4caf50; background: rgba(0,0,0,0.65); padding: 10px 16px; border-radius: 8px; backdrop-filter: blur(8px); display: none; }
+#exit-btn { position: fixed; top: 16px; right: 16px; z-index: 1000; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 8px 18px; border-radius: 20px; font-size: 13px; cursor: pointer; backdrop-filter: blur(8px); pointer-events: auto; }
+#debug-log { position: fixed; bottom: 60px; left: 16px; z-index: 20; font-size: 11px; color: #ff9800; background: rgba(0,0,0,0.7); padding: 8px 12px; border-radius: 6px; max-width: 360px; max-height: 150px; overflow-y: auto; display: none; font-family: monospace; }
+#status-hint { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 20; background: rgba(0,0,0,0.7); padding: 8px 20px; border-radius: 20px; font-size: 13px; color: #aaa; display: none; backdrop-filter: blur(8px); transition: opacity 0.3s; }
+#gesture-hint { position: fixed; left: 16px; bottom: 18px; z-index: 21; background: rgba(0,0,0,0.64); border: 1px solid rgba(255,193,7,0.28); color: #ffc107; padding: 8px 14px; border-radius: 999px; font-size: 12px; backdrop-filter: blur(8px); pointer-events: none; }
+.ctrl-btn { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.22); color: #fff; padding: 9px 16px; border-radius: 20px; font-size: 13px; cursor: pointer; backdrop-filter: blur(10px); pointer-events: auto; transition: background 0.2s, border-color 0.2s; -webkit-tap-highlight-color: transparent; }
+.ctrl-btn:hover, .ctrl-btn:focus { background: rgba(255,255,255,0.18); border-color: rgba(255,255,255,0.35); outline: none; }
+.ctrl-btn.active { background: linear-gradient(135deg, #ffc107, #ff9800); color: #000; border-color: transparent; font-weight: 600; }
+#lock-btn { position: fixed; top: 16px; right: 110px; z-index: 1000; }
+#shot-btn { position: fixed; top: 56px; right: 16px; z-index: 1000; }
+#debug-btn { position: fixed; top: 96px; right: 16px; z-index: 1000; }
+#model-bar { position: fixed; left: 50%; transform: translateX(-50%); bottom: 18px; z-index: 1000; display: flex; gap: 8px; padding: 8px 12px; background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.14); border-radius: 26px; backdrop-filter: blur(12px); max-width: calc(100vw - 32px); overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+#model-bar::-webkit-scrollbar { display: none; }
+.model-chip { flex: 0 0 auto; padding: 7px 14px; border-radius: 18px; font-size: 12px; color: #ddd; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); cursor: pointer; white-space: nowrap; pointer-events: auto; transition: background 0.2s, color 0.2s; -webkit-tap-highlight-color: transparent; }
+.model-chip:hover { background: rgba(255,255,255,0.14); }
+.model-chip.active { background: linear-gradient(135deg, #ffc107, #ff9800); color: #000; border-color: transparent; font-weight: 600; }
+#toast { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 2000; background: rgba(0,0,0,0.82); color: #fff; padding: 12px 22px; border-radius: 14px; font-size: 14px; opacity: 0; transition: opacity 0.25s; pointer-events: none; backdrop-filter: blur(8px); border: 1px solid rgba(255,193,7,0.3); }
+#toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<video id="video" autoplay playsinline muted></video>
+<canvas id="three-canvas"></canvas>
+<canvas id="debug-canvas"></canvas>
+<div id="loading" class="overlay">
+  <div class="spinner"></div>
+  <div class="step-text" id="step-text">AR 试戴初始化</div>
+  <div class="step-detail" id="step-detail">正在初始化视觉系统...</div>
+</div>
+<div id="error-overlay" class="overlay hidden">
+  <div class="error-box">
+    <div class="error-title">启动失败</div>
+    <div class="error-msg" id="error-msg"></div>
+    <button class="retry-btn" onclick="location.reload()">重新启动</button>
+  </div>
+</div>
+<div id="hud"></div>
+<div id="debug-log"></div>
+<button id="exit-btn" type="button" onclick="exitWear()">退出</button>
+<button id="lock-btn" class="ctrl-btn" type="button" onclick="toggleOrientationLock()">锁定朝向</button>
+<button id="shot-btn" class="ctrl-btn" type="button" onclick="captureSnapshot()">截图</button>
+<button id="debug-btn" class="ctrl-btn" type="button" onclick="toggleDebugAnchors()">锚点</button>
+<div id="model-bar"></div>
+<div id="toast"></div>
+<div id="status-hint">请将脸部正对摄像头</div>
+<div id="gesture-hint">手横向划过脸切换面具</div>
+
+<script>
+function exitWear() {
+  let fallbackUrl = 'http://127.0.0.1:5174/';
+  try {
+    if (document.referrer) {
+      const referrerUrl = new URL(document.referrer);
+      if (!referrerUrl.pathname.includes('/ar-wear.html')) fallbackUrl = referrerUrl.href;
+    }
+  } catch (_) {}
+  try { window.close(); } catch (_) {}
+  window.setTimeout(() => {
+    if (!document.hidden) window.location.href = fallbackUrl;
+  }, 80);
+}
+
+// 全局 AR 控制函数（由 module 脚本挂载真正的实现）
+let orientationLocked = false;
+function toggleOrientationLock() {
+  if (typeof window.__arToggleLock === 'function') return window.__arToggleLock();
+}
+function captureSnapshot() {
+  if (typeof window.__arCapture === 'function') return window.__arCapture();
+}
+function toggleDebugAnchors() {
+  if (typeof window.__arToggleDebug === 'function') return window.__arToggleDebug();
+}
+function selectMaskByIndex(idx) {
+  if (typeof window.__arSelectMask === 'function') return window.__arSelectMask(idx);
+}
+const toastEl = document.getElementById('toast');
+let toastTimer = 0;
+function showToast(text, timeout = 1600) {
+  if (!toastEl) return;
+  toastEl.textContent = text;
+  toastEl.classList.add('show');
+  window.clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(() => toastEl.classList.remove('show'), timeout);
+}
+</script>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { FaceLandmarker, FilesetResolver, HandLandmarker } from './node_modules/@mediapipe/tasks-vision/vision_bundle.mjs';
+
+const video = document.getElementById('video');
+const threeCanvas = document.getElementById('three-canvas');
+const debugCanvas = document.getElementById('debug-canvas');
+const loadingEl = document.getElementById('loading');
+const stepText = document.getElementById('step-text');
+const stepDetail = document.getElementById('step-detail');
+const errorOverlay = document.getElementById('error-overlay');
+const errorMsg = document.getElementById('error-msg');
+const hud = document.getElementById('hud');
+const debugLog = document.getElementById('debug-log');
+const statusHint = document.getElementById('status-hint');
+const gestureHint = document.getElementById('gesture-hint');
+
+const logs = [];
+function log(msg) {
+  logs.push(msg);
+  if (logs.length > 20) logs.shift();
+  debugLog.textContent = logs.join('\n');
+  debugLog.style.display = 'block';
+  console.log(msg);
+}
+
+const params = new URLSearchParams(location.search);
+const initialModelUrl = params.get('model') || './public/models/existing/glb/12b297fd31ca12de1f6774d43f8cc33a.glb';
+let DEBUG_ANCHORS = params.get('debug') === '1';
+const MIRROR_VIDEO = params.get('mirror') !== '0';
+function inferWearProfile(url) {
+  const decoded = decodeURIComponent(url || '');
+  if (decoded.includes('12b297fd31ca12de1f6774d43f8cc33a')) return 'tilted-mask';
+  if (decoded.includes('7575764dbcba3b3c591c775b5c6daafa')) return 'jade-face';
+  if (decoded.includes('5b81d915043f2d52feb2c2024fbfcb6a')) return 'full-mask-wide';
+  return 'full-mask';
+}
+const initialWearProfile = params.get('profile') || inferWearProfile(initialModelUrl);
+const WEAR_PROFILES = {
+  'full-mask': {
+    fit: 1.22,
+    depth: 1.85,
+    surface: 0.035,
+    yawForward: 0.055,
+    rotation: { x: 0, y: Math.PI, z: 0 },
+    noseAnchor: { x: 0.01, y: -0.10, z: 0.28 },
+    features: {},
+    scaleWeights: { eyes: 0.44, cheeks: 0.28, temples: 0.16, chin: 0.12 },
+    weights: { nose: 6, noseBridge: 2.1, eyes: 2.2, cheeks: 1.7, temples: 1.5, jaws: 1.15, forehead: 0.85, mouth: 1.4, chin: 0.9 }
+  },
+  'full-mask-wide': {
+    fit: 1.34,
+    depth: 1.92,
+    surface: 0.042,
+    yawForward: 0.07,
+    rotation: { x: 0, y: Math.PI, z: 0 },
+    noseAnchor: { x: 0.01, y: -0.08, z: 0.30 },
+    features: {},
+    scaleWeights: { eyes: 0.40, cheeks: 0.31, temples: 0.21, chin: 0.08 },
+    weights: { nose: 5.5, noseBridge: 2.2, eyes: 2.35, cheeks: 2.0, temples: 1.9, jaws: 1.35, forehead: 0.9, mouth: 1.2, chin: 0.75 }
+  },
+  'upper-face': {
+    fit: 1.08,
+    depth: 1.75,
+    surface: 0.055,
+    yawForward: 0.085,
+    rotation: { x: 0, y: Math.PI, z: 0 },
+    noseAnchor: { x: 0.0, y: -0.24, z: 0.24 },
+    features: {
+      nose: { x: 0, y: -0.10, z: 0.08 },
+      noseBridge: { x: 0, y: 0.10, z: 0.16 },
+      leftEye: { x: -0.20, y: 0.13, z: 0.15 },
+      rightEye: { x: 0.20, y: 0.13, z: 0.15 },
+      leftTemple: { x: -0.37, y: 0.17, z: 0.18 },
+      rightTemple: { x: 0.37, y: 0.17, z: 0.18 },
+      forehead: { x: 0, y: 0.34, z: 0.18 },
+      mouth: { x: 0, y: -0.25, z: 0.10 },
+      chin: { x: 0, y: -0.36, z: 0.10 }
+    },
+    scaleWeights: { eyes: 0.58, cheeks: 0.08, temples: 0.26, chin: 0.08 },
+    weights: { nose: 1.6, noseBridge: 4.2, eyes: 3.0, cheeks: 0.7, temples: 2.5, jaws: 0.2, forehead: 3.8, mouth: 0.05, chin: 0.05 }
+  },
+  'tilted-mask': {
+    fit: 1.16,
+    depth: 1.82,
+    surface: 0.04,
+    yawForward: 0.06,
+    rotation: { x: 0, y: Math.PI, z: -0.18 },
+    noseAnchor: { x: -0.02, y: -0.12, z: 0.28 },
+    features: {
+      nose: { x: 0, y: -0.02, z: 0.08 },
+      noseBridge: { x: 0, y: 0.13, z: 0.15 },
+      leftEye: { x: -0.17, y: 0.16, z: 0.15 },
+      rightEye: { x: 0.17, y: 0.16, z: 0.15 },
+      leftCheek: { x: -0.31, y: 0.00, z: 0.18 },
+      rightCheek: { x: 0.31, y: 0.00, z: 0.18 },
+      forehead: { x: 0, y: 0.33, z: 0.18 }
+    },
+    scaleWeights: { eyes: 0.48, cheeks: 0.27, temples: 0.15, chin: 0.10 },
+    weights: { nose: 6.4, noseBridge: 2.6, eyes: 2.6, cheeks: 1.6, temples: 1.0, jaws: 0.85, forehead: 1.1, mouth: 0.75, chin: 0.45 }
+  },
+  'jade-face': {
+    fit: 0.88,
+    depth: 1.68,
+    surface: 0.07,
+    yawForward: 0.095,
+    rotation: { x: 0, y: Math.PI, z: 0 },
+    noseAnchor: { x: -0.02, y: -0.34, z: 0.20 },
+    features: {
+      nose: { x: 0, y: -0.14, z: 0.08 },
+      noseBridge: { x: 0, y: 0.06, z: 0.16 },
+      leftEye: { x: -0.16, y: 0.12, z: 0.15 },
+      rightEye: { x: 0.16, y: 0.12, z: 0.15 },
+      leftCheek: { x: -0.20, y: -0.03, z: 0.12 },
+      rightCheek: { x: 0.20, y: -0.03, z: 0.12 },
+      leftTemple: { x: -0.27, y: 0.20, z: 0.15 },
+      rightTemple: { x: 0.27, y: 0.20, z: 0.15 },
+      leftJaw: { x: -0.12, y: -0.26, z: 0.08 },
+      rightJaw: { x: 0.12, y: -0.26, z: 0.08 },
+      forehead: { x: 0, y: 0.35, z: 0.16 },
+      mouth: { x: 0, y: -0.29, z: 0.08 },
+      chin: { x: 0, y: -0.36, z: 0.08 }
+    },
+    scaleWeights: { eyes: 0.62, cheeks: 0.10, temples: 0.23, chin: 0.05 },
+    weights: { nose: 1.1, noseBridge: 5.2, eyes: 4.4, cheeks: 0.55, temples: 2.8, jaws: 0.05, forehead: 4.6, mouth: 0.02, chin: 0.02 }
+  }
+};
+const FACE_WORLD_WIDTH = 1.0;
+const FALLBACK_NOSE_ANCHOR = { x: 0, y: 0, z: -0.35 };
+const BASE_MODEL_FEATURES = {
+  nose: new THREE.Vector3(0, 0, 0),
+  noseBridge: new THREE.Vector3(0, 0.12, 0.13),
+  leftEye: new THREE.Vector3(-0.15, 0.16, 0.14),
+  rightEye: new THREE.Vector3(0.15, 0.16, 0.14),
+  leftCheek: new THREE.Vector3(-0.34, 0.02, 0.23),
+  rightCheek: new THREE.Vector3(0.34, 0.02, 0.23),
+  leftTemple: new THREE.Vector3(-0.43, 0.17, 0.27),
+  rightTemple: new THREE.Vector3(0.43, 0.17, 0.27),
+  leftJaw: new THREE.Vector3(-0.27, -0.15, 0.24),
+  rightJaw: new THREE.Vector3(0.27, -0.15, 0.24),
+  forehead: new THREE.Vector3(0, 0.34, 0.25),
+  mouth: new THREE.Vector3(0, -0.12, 0.15),
+  chin: new THREE.Vector3(0, -0.23, 0.20),
+};
+let currentWearProfile = initialWearProfile;
+let ACTIVE_WEAR_PROFILE = WEAR_PROFILES[currentWearProfile] || WEAR_PROFILES['full-mask'];
+let MASK_FIT_SCALE = Number(params.get('fit') || ACTIVE_WEAR_PROFILE.fit);
+let FACE_DEPTH_SCALE = Number(params.get('depth') || ACTIVE_WEAR_PROFILE.depth);
+let FACE_SURFACE_OFFSET = Number(params.get('surface') || ACTIVE_WEAR_PROFILE.surface);
+let FACE_YAW_FORWARD_OFFSET = Number(params.get('yawForward') || ACTIVE_WEAR_PROFILE.yawForward);
+let MASK_NOSE_ANCHOR = ACTIVE_WEAR_PROFILE.noseAnchor;
+let PROFILE_WEIGHTS = ACTIVE_WEAR_PROFILE.weights;
+let PROFILE_SCALE_WEIGHTS = ACTIVE_WEAR_PROFILE.scaleWeights;
+let PROFILE_MODEL_ROTATION = ACTIVE_WEAR_PROFILE.rotation || { x: 0, y: Math.PI, z: 0 };
+let MODEL_FEATURES = buildModelFeatures(ACTIVE_WEAR_PROFILE);
+let MODEL_EYE_DISTANCE = MODEL_FEATURES.leftEye.distanceTo(MODEL_FEATURES.rightEye);
+let MODEL_CHEEK_DISTANCE = MODEL_FEATURES.leftCheek.distanceTo(MODEL_FEATURES.rightCheek);
+let MODEL_TEMPLE_DISTANCE = MODEL_FEATURES.leftTemple.distanceTo(MODEL_FEATURES.rightTemple);
+
+function buildModelFeatures(profile) {
+  return Object.fromEntries(Object.entries(BASE_MODEL_FEATURES).map(([key, value]) => {
+    const override = profile.features?.[key];
+    return [key, override ? new THREE.Vector3(override.x, override.y, override.z) : value.clone()];
+  }));
+}
+
+function setActiveWearProfile(profileName) {
+  currentWearProfile = WEAR_PROFILES[profileName] ? profileName : 'full-mask';
+  ACTIVE_WEAR_PROFILE = WEAR_PROFILES[currentWearProfile] || WEAR_PROFILES['full-mask'];
+  MASK_FIT_SCALE = Number(params.get('fit') || ACTIVE_WEAR_PROFILE.fit);
+  FACE_DEPTH_SCALE = Number(params.get('depth') || ACTIVE_WEAR_PROFILE.depth);
+  FACE_SURFACE_OFFSET = Number(params.get('surface') || ACTIVE_WEAR_PROFILE.surface);
+  FACE_YAW_FORWARD_OFFSET = Number(params.get('yawForward') || ACTIVE_WEAR_PROFILE.yawForward);
+  MASK_NOSE_ANCHOR = ACTIVE_WEAR_PROFILE.noseAnchor;
+  PROFILE_WEIGHTS = ACTIVE_WEAR_PROFILE.weights;
+  PROFILE_SCALE_WEIGHTS = ACTIVE_WEAR_PROFILE.scaleWeights;
+  PROFILE_MODEL_ROTATION = ACTIVE_WEAR_PROFILE.rotation || { x: 0, y: Math.PI, z: 0 };
+  MODEL_FEATURES = buildModelFeatures(ACTIVE_WEAR_PROFILE);
+  MODEL_EYE_DISTANCE = MODEL_FEATURES.leftEye.distanceTo(MODEL_FEATURES.rightEye);
+  MODEL_CHEEK_DISTANCE = MODEL_FEATURES.leftCheek.distanceTo(MODEL_FEATURES.rightCheek);
+  MODEL_TEMPLE_DISTANCE = MODEL_FEATURES.leftTemple.distanceTo(MODEL_FEATURES.rightTemple);
+}
+const FACE_LANDMARKS = {
+  nose: [1],
+  noseBridge: [6, 168, 197, 195],
+  leftEye: [33, 133, 159, 145],
+  rightEye: [263, 362, 386, 374],
+  leftCheek: [234, 93, 132],
+  rightCheek: [454, 323, 361],
+  leftTemple: [127, 162, 21],
+  rightTemple: [356, 389, 251],
+  leftJaw: [172, 136, 150],
+  rightJaw: [397, 365, 379],
+  forehead: [10, 151, 9],
+  mouth: [13, 14, 0, 17, 78, 308],
+  chin: [152],
+};
+
+function setStep(text, detail) {
+  stepText.textContent = text;
+  if (detail) stepDetail.textContent = detail;
+  log(text + (detail ? ': ' + detail : ''));
+}
+function showError(msg) {
+  loadingEl.classList.add('hidden');
+  errorMsg.textContent = msg;
+  errorOverlay.classList.remove('hidden');
+  log('ERROR: ' + msg);
+}
+
+let statusHintTimer = 0;
+function showGestureHint(text, timeout = 1400) {
+  statusHint.textContent = text;
+  gestureHint.textContent = text;
+  statusHint.style.display = 'block';
+  statusHint.style.opacity = '1';
+  window.clearTimeout(statusHintTimer);
+  statusHintTimer = window.setTimeout(() => {
+    if (faceFound) statusHint.style.opacity = '0';
+  }, timeout);
+}
+
+function friendlyCameraError(error) {
+  const msg = String(error && (error.message || error));
+  if (/Device in use|NotReadableError/i.test(msg)) {
+    return 'Camera is already in use. Close other camera tabs/apps, then refresh this page.';
+  }
+  if (/Permission|NotAllowedError|denied/i.test(msg)) {
+    return 'Camera permission was blocked. Allow camera access, then refresh this page.';
+  }
+  if (/NotFoundError|not found|no camera/i.test(msg)) {
+    return 'No camera was found. Connect a camera, then refresh this page.';
+  }
+  return msg;
+}
+
+setStep('步骤 1/4: 初始化 Three.js...');
+
+const scene = new THREE.Scene();
+const renderer = new THREE.WebGLRenderer({ canvas: threeCanvas, alpha: true, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0x000000, 0);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+const debugCtx = debugCanvas.getContext('2d');
+debugCanvas.style.display = DEBUG_ANCHORS ? 'block' : 'none';
+
+// 环境贴图：让 PBR 材质有反射，避免白膜/灰膜
+const pmremGenerator = new THREE.PMREMGenerator(renderer);
+const roomEnv = new RoomEnvironment();
+scene.environment = pmremGenerator.fromScene(roomEnv, 0.04).texture;
+roomEnv.dispose && roomEnv.dispose();
+
+const FOV_DEG = 35;
+const camera = new THREE.PerspectiveCamera(FOV_DEG, window.innerWidth / window.innerHeight, 0.01, 100);
+camera.position.set(0, 0, 0);
+camera.lookAt(0, 0, -1);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.78));
+const dl1 = new THREE.DirectionalLight(0xffffff, 1.05);
+dl1.position.set(0, 1, 3);
+scene.add(dl1);
+const dl2 = new THREE.DirectionalLight(0xffffff, 0.38);
+dl2.position.set(-1, 0.5, 2);
+scene.add(dl2);
+const dl3 = new THREE.DirectionalLight(0xffffff, 0.30);
+dl3.position.set(1, -0.5, 2);
+scene.add(dl3);
+
+const faceObj = new THREE.Group();
+scene.add(faceObj);
+
+let maskModel = null;
+let gltfReady = false;
+let activeModelUrl = initialModelUrl;
+let modelLibrary = [];
+let activeModelIndex = 0;
+let modelSwitching = false;
+let currentLandmarks = null;
+let currentMatrixData = null;
+let faceMeshInstance = null;
+let handLandmarkerInstance = null;
+let handLandmarkerReady = false;
+let faceMeshReady = false;
+let cameraStarted = false;
+let maskModelWidth = 1.0;
+let lastCameraFrameTime = -1;
+let lastHandFrameTime = -1;
+let faceFramePending = false;
+let handFramePending = false;
+
+function resizeRenderer() {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setSize(w, h, false);
+  debugCanvas.width = Math.round(w * Math.min(window.devicePixelRatio, 2));
+  debugCanvas.height = Math.round(h * Math.min(window.devicePixelRatio, 2));
+  debugCanvas.style.width = w + 'px';
+  debugCanvas.style.height = h + 'px';
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+resizeRenderer();
+window.addEventListener('resize', resizeRenderer);
+
+function fitMaskModel(model, rotateY = true) {
+  const box = new THREE.Box3().setFromObject(model);
+  const size = new THREE.Vector3();
+  const center = new THREE.Vector3();
+  box.getSize(size);
+  box.getCenter(center);
+
+  const maxDim = Math.max(size.x, size.y, size.z);
+  if (maxDim > 0.001) {
+    const invMaxDim = 1.0 / maxDim;
+    const noseAnchor = rotateY ? MASK_NOSE_ANCHOR : FALLBACK_NOSE_ANCHOR;
+    const anchor = new THREE.Vector3(
+      center.x + noseAnchor.x * maxDim,
+      center.y + noseAnchor.y * maxDim,
+      center.z + noseAnchor.z * maxDim
+    );
+    anchor.multiplyScalar(invMaxDim);
+
+    model.scale.setScalar(invMaxDim);
+    if (rotateY) {
+      model.rotation.set(PROFILE_MODEL_ROTATION.x || 0, PROFILE_MODEL_ROTATION.y || 0, PROFILE_MODEL_ROTATION.z || 0);
+    } else {
+      model.rotation.set(0, 0, 0);
+    }
+    model.position.copy(anchor.applyEuler(model.rotation).multiplyScalar(-1));
+    maskModelWidth = Math.max(size.x / maxDim, 0.001);
+  } else {
+    maskModelWidth = 1.0;
+  }
+}
+
+setStep('步骤 2/4: 加载 3D 面具...', initialModelUrl);
+
+const builtInModelLibrary = [
+  {
+    id: 'existing-mask-01',
+    name: '纵目青铜覆面',
+    url: './public/models/existing/glb/12b297fd31ca12de1f6774d43f8cc33a.glb',
+    wearProfile: 'tilted-mask'
+  },
+  {
+    id: 'existing-mask-02',
+    name: '宽翼兽面',
+    url: './public/models/existing/glb/5b81d915043f2d52feb2c2024fbfcb6a%281%29.glb',
+    wearProfile: 'full-mask-wide'
+  },
+  {
+    id: 'existing-mask-03',
+    name: '额眼面饰',
+    url: './public/models/existing/glb/7575764dbcba3b3c591c775b5c6daafa.glb',
+    wearProfile: 'jade-face'
+  }
+];
+
+function normalizeModelUrl(url) {
+  return new URL(url, location.href).href;
+}
+
+function modelsAreSame(a, b) {
+  try {
+    return normalizeModelUrl(a) === normalizeModelUrl(b);
+  } catch (_) {
+    return String(a || '') === String(b || '');
+  }
+}
+
+function mergeWearLibrary(generatedModels = []) {
+  const startModel = {
+    id: 'current-url-model',
+    name: '当前面具',
+    url: activeModelUrl,
+    wearProfile: initialWearProfile
+  };
+  const source = [
+    ...generatedModels.map((item) => ({
+      id: item.id,
+      name: item.name || 'AI 生成面具',
+      url: item.glbUrl,
+      wearProfile: item.wearProfile || inferWearProfile(item.glbUrl)
+    })),
+    ...builtInModelLibrary,
+    startModel
+  ].filter((item) => item.url);
+
+  const seen = new Set();
+  modelLibrary = source.filter((item) => {
+    const key = normalizeModelUrl(item.url);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  activeModelIndex = Math.max(0, modelLibrary.findIndex((item) => modelsAreSame(item.url, activeModelUrl)));
+  if (activeModelIndex < 0) activeModelIndex = 0;
+  log(`Wear model library ready: ${modelLibrary.length}`);
+  if (typeof renderModelBar === 'function') renderModelBar();
+}
+
+async function loadWearLibrary() {
+  try {
+    const resp = await fetch('./api/generated-models');
+    const data = resp.ok ? await resp.json() : { models: [] };
+    mergeWearLibrary(data.models || []);
+  } catch (e) {
+    log('Wear model library unavailable: ' + (e.message || e));
+    mergeWearLibrary([]);
+  }
+}
+
+function disposeObject3D(obj) {
+  obj.traverse((child) => {
+    if (!child.isMesh) return;
+    if (child.geometry) child.geometry.dispose();
+    const mats = Array.isArray(child.material) ? child.material : [child.material];
+    mats.filter(Boolean).forEach((mat) => mat.dispose?.());
+  });
+}
+
+function prepareMaskModel(model) {
+  model.traverse(c => {
+    if (!c.isMesh || !c.material) return;
+    const mats = Array.isArray(c.material) ? c.material : [c.material];
+    mats.forEach(m => {
+      if (!m) return;
+      if (m.map) m.map.colorSpace = THREE.SRGBColorSpace;
+      if (m.emissiveMap) m.emissiveMap.colorSpace = THREE.SRGBColorSpace;
+      m.side = THREE.DoubleSide;
+      m.depthWrite = true;
+    });
+  });
+}
+
+function loadMaskModel(url, profileName, options = {}) {
+  const { initial = false, label = '面具' } = options;
+  const resolvedProfile = profileName || inferWearProfile(url);
+  return new Promise((resolve, reject) => {
+    new GLTFLoader().load(
+      url,
+      (gltf) => {
+        log('GLB loaded successfully: ' + url);
+        setActiveWearProfile(resolvedProfile);
+        const nextMask = gltf.scene;
+        prepareMaskModel(nextMask);
+        fitMaskModel(nextMask);
+        const previousMask = maskModel;
+        maskModel = nextMask;
+        faceObj.add(maskModel);
+        if (previousMask) {
+          faceObj.remove(previousMask);
+          disposeObject3D(previousMask);
+        }
+        activeModelUrl = url;
+        gltfReady = true;
+        setStep(initial ? '步骤 2/4: 3D面具加载完成' : `已切换:${label}`, initial ? '等待人脸模型...' : '手划过脸可继续切换');
+        tryStartCamera();
+        resolve(maskModel);
+      },
+      (xhr) => {
+        if (xhr.total > 0 && initial) {
+          const pct = Math.round(xhr.loaded / xhr.total * 100);
+          stepDetail.textContent = `加载中... ${pct}%`;
+        }
+      },
+      reject
+    );
+  });
+}
+
+function loadInitialMask() {
+  loadMaskModel(initialModelUrl, initialWearProfile, { initial: true, label: '当前面具' })
+    .catch((err) => {
+      log('GLB load failed: ' + (err.message || err));
+      if (params.has('model')) {
+        console.error('GLB load failed:', err);
+        showError('GLB模型加载失败，未使用备用模型。\n\n模型地址:\n' + initialModelUrl + '\n\n错误信息:\n' + (err.message || err));
+        return;
+      }
+      console.error('GLB load failed, using fallback:', err);
+      setActiveWearProfile('full-mask');
+      maskModel = createFallbackMask();
+      fitMaskModel(maskModel, false);
+      faceObj.add(maskModel);
+      gltfReady = true;
+      setStep('步骤 2/4: 使用备用面具模型', 'GLB未找到，使用内置模型');
+      tryStartCamera();
+    });
+}
+
+async function switchToNextModel() {
+  if (modelSwitching || modelLibrary.length < 2) return;
+  modelSwitching = true;
+  const nextIndex = (activeModelIndex + 1) % modelLibrary.length;
+  const nextModel = modelLibrary[nextIndex];
+  showGestureHint(`切换面具:${nextModel.name || '下一个模型'}`);
+  log(`Switching mask ${activeModelIndex + 1}/${modelLibrary.length} -> ${nextIndex + 1}/${modelLibrary.length}`);
+  try {
+    await loadMaskModel(nextModel.url, nextModel.wearProfile, { label: nextModel.name || '下一个面具' });
+    activeModelIndex = nextIndex;
+  } catch (e) {
+    log('Mask switch failed: ' + (e.message || e));
+    showGestureHint('面具切换失败');
+  } finally {
+    window.setTimeout(() => { modelSwitching = false; }, 650);
+    if (typeof renderModelBar === 'function') renderModelBar();
+  }
+}
+
+loadWearLibrary();
+loadInitialMask();
+
+function createFallbackMask() {
+  const g = new THREE.Group();
+  const gold = new THREE.MeshStandardMaterial({ color: 0xCDA44E, metalness: 0.95, roughness: 0.2 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x1a1a2e, metalness: 0.3, roughness: 0.6 });
+  const face = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.4, 1.22, 32, 1, true, -0.33, 0.66), gold);
+  face.scale.z = 0.5; g.add(face);
+  const eyeGeo = new THREE.SphereGeometry(0.13, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.45);
+  const le = new THREE.Mesh(eyeGeo, dark); le.position.set(-0.18, 0.2, -0.4); le.scale.z = 0.35; g.add(le);
+  const re = new THREE.Mesh(eyeGeo, dark); re.position.set(0.18, 0.2, -0.4); re.scale.z = 0.35; g.add(re);
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.32, 8), gold);
+  nose.position.set(0, 0, -0.48); nose.rotation.x = 0.3; g.add(nose);
+  const earGeo = new THREE.SphereGeometry(0.16, 12, 8);
+  const le2 = new THREE.Mesh(earGeo, gold); le2.position.set(-0.48, 0, 0); le2.scale.set(0.4, 0.7, 0.8); g.add(le2);
+  const re2 = new THREE.Mesh(earGeo, gold); re2.position.set(0.48, 0, 0); re2.scale.set(0.4, 0.7, 0.8); g.add(re2);
+  return g;
+}
+
+let sS = 1;
+const SMOOTH = Number(params.get('smooth') || 0.42);
+let poseReady = false;
+const smoothPos = new THREE.Vector3();
+const targetPos = new THREE.Vector3();
+const smoothQuat = new THREE.Quaternion();
+const targetQuat = new THREE.Quaternion();
+const targetEuler = new THREE.Euler(0, Math.PI, 0, 'YXZ');
+const targetMatrix = new THREE.Matrix4();
+const mirrorMatrix = new THREE.Matrix4().makeScale(-1, 1, 1);
+const maskFacingCorrection = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
+const faceFeatureNose = new THREE.Vector3();
+const faceFeatureNoseBridge = new THREE.Vector3();
+const faceFeatureLeftEye = new THREE.Vector3();
+const faceFeatureRightEye = new THREE.Vector3();
+const faceFeatureLeftCheek = new THREE.Vector3();
+const faceFeatureRightCheek = new THREE.Vector3();
+const faceFeatureLeftTemple = new THREE.Vector3();
+const faceFeatureRightTemple = new THREE.Vector3();
+const faceFeatureLeftJaw = new THREE.Vector3();
+const faceFeatureRightJaw = new THREE.Vector3();
+const faceFeatureForehead = new THREE.Vector3();
+const faceFeatureMouth = new THREE.Vector3();
+const faceFeatureChin = new THREE.Vector3();
+const featureOffset = new THREE.Vector3();
+const featureTarget = new THREE.Vector3();
+const featureSum = new THREE.Vector3();
+const faceOutDir = new THREE.Vector3();
+const cameraForwardDir = new THREE.Vector3(0, 0, 1);
+const avgNoseLandmark = { x: 0, y: 0, z: 0 };
+const avgNoseBridgeLandmark = { x: 0, y: 0, z: 0 };
+const avgLeftEyeLandmark = { x: 0, y: 0, z: 0 };
+const avgRightEyeLandmark = { x: 0, y: 0, z: 0 };
+const avgLeftCheekLandmark = { x: 0, y: 0, z: 0 };
+const avgRightCheekLandmark = { x: 0, y: 0, z: 0 };
+const avgLeftTempleLandmark = { x: 0, y: 0, z: 0 };
+const avgRightTempleLandmark = { x: 0, y: 0, z: 0 };
+const avgLeftJawLandmark = { x: 0, y: 0, z: 0 };
+const avgRightJawLandmark = { x: 0, y: 0, z: 0 };
+const avgForeheadLandmark = { x: 0, y: 0, z: 0 };
+const avgMouthLandmark = { x: 0, y: 0, z: 0 };
+const avgChinLandmark = { x: 0, y: 0, z: 0 };
+const debugFaceAnchors = {
+  nose: new THREE.Vector3(),
+  noseBridge: new THREE.Vector3(),
+  leftEye: new THREE.Vector3(),
+  rightEye: new THREE.Vector3(),
+  leftCheek: new THREE.Vector3(),
+  rightCheek: new THREE.Vector3(),
+  leftTemple: new THREE.Vector3(),
+  rightTemple: new THREE.Vector3(),
+  leftJaw: new THREE.Vector3(),
+  rightJaw: new THREE.Vector3(),
+  forehead: new THREE.Vector3(),
+  mouth: new THREE.Vector3(),
+  chin: new THREE.Vector3(),
+};
+const debugModelAnchors = {
+  nose: new THREE.Vector3(),
+  noseBridge: new THREE.Vector3(),
+  leftEye: new THREE.Vector3(),
+  rightEye: new THREE.Vector3(),
+  leftCheek: new THREE.Vector3(),
+  rightCheek: new THREE.Vector3(),
+  leftTemple: new THREE.Vector3(),
+  rightTemple: new THREE.Vector3(),
+  leftJaw: new THREE.Vector3(),
+  rightJaw: new THREE.Vector3(),
+  forehead: new THREE.Vector3(),
+  mouth: new THREE.Vector3(),
+  chin: new THREE.Vector3(),
+};
+let faceFound = false;
+let handFound = false;
+let frameCount = 0;
+let fps = 0;
+let lastFpsT = performance.now();
+let visionFilesetPromise = null;
+let lastFaceSwipeBounds = null;
+let lastFaceSwipeBoundsT = 0;
+
+setStep('步骤 3/4: 加载人脸模型...', '等待MediaPipe库...');
+
+function waitForFaceMesh() {
+  if (typeof FaceMesh === 'undefined') {
+    log('Waiting for FaceMesh global...');
+    setTimeout(waitForFaceMesh, 200);
+    return;
+  }
+  initFaceMesh();
+}
+
+function initFaceMesh() {
+  log('FaceMesh constructor available, initializing...');
+  setStep('步骤 3/4: 加载人脸模型...', '下载神经网络模型...');
+
+  faceMeshInstance = new FaceMesh({
+    locateFile: (file) => {
+      const url = `./mediapipe-facemesh/${file}`;
+      log('locateFile: ' + file + ' -> ' + url);
+      return url;
+    }
+  });
+
+  faceMeshInstance.setOptions({
+    maxNumFaces: 1,
+    refineLandmarks: false,
+    minDetectionConfidence: 0.5,
+    minTrackingConfidence: 0.5
+  });
+
+  faceMeshInstance.onResults((results) => {
+    if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+      currentLandmarks = results.multiFaceLandmarks[0];
+      faceFound = true;
+      statusHint.style.opacity = '0';
+    } else {
+      currentLandmarks = null;
+      faceFound = false;
+    }
+  });
+
+  log('Calling faceMesh.initialize()...');
+  faceMeshInstance.initialize()
+    .then(() => {
+      log('FaceMesh initialized successfully!');
+      faceMeshReady = true;
+      setStep('步骤 3/4: 人脸模型加载完成', '等待摄像头启动...');
+      tryStartCamera();
+    })
+    .catch((e) => {
+      log('FaceMesh init error: ' + (e.message || e));
+      console.error('FaceMesh init error:', e);
+      showError('FaceMesh init failed: ' + (e.message || e) + '\n\nPlease refresh or check the local MediaPipe files.');
+    });
+}
+
+function getVisionFileset() {
+  if (!visionFilesetPromise) {
+    visionFilesetPromise = FilesetResolver.forVisionTasks('./node_modules/@mediapipe/tasks-vision/wasm');
+  }
+  return visionFilesetPromise;
+}
+
+async function createFaceLandmarker(delegate) {
+  const filesetResolver = await getVisionFileset();
+  return FaceLandmarker.createFromOptions(filesetResolver, {
+    baseOptions: {
+      modelAssetPath: './public/models/face_landmarker.task',
+      delegate,
+    },
+    outputFacialTransformationMatrixes: true,
+    runningMode: 'VIDEO',
+    numFaces: 1,
+  });
+}
+
+async function createHandLandmarker(delegate) {
+  const filesetResolver = await getVisionFileset();
+  return HandLandmarker.createFromOptions(filesetResolver, {
+    baseOptions: {
+      modelAssetPath: './public/models/hand_landmarker.task',
+      delegate,
+    },
+    runningMode: 'VIDEO',
+    numHands: 1,
+    minHandDetectionConfidence: 0.55,
+    minHandPresenceConfidence: 0.55,
+    minTrackingConfidence: 0.55,
+  });
+}
+
+async function initHandLandmarkerTracker() {
+  log('Initializing HandLandmarker...');
+  try {
+    try {
+      handLandmarkerInstance = await createHandLandmarker('GPU');
+    } catch (gpuError) {
+      log('HandLandmarker GPU init failed, retrying CPU: ' + (gpuError.message || gpuError));
+      handLandmarkerInstance = await createHandLandmarker('CPU');
+    }
+    handLandmarkerReady = true;
+    showGestureHint('手划过脸可切换面具', 1800);
+    log('HandLandmarker initialized successfully!');
+  } catch (e) {
+    handLandmarkerReady = false;
+    log('HandLandmarker disabled: ' + (e.message || e));
+  }
+}
+
+async function initFaceLandmarkerTracker() {
+  log('Initializing FaceLandmarker...');
+  setStep('Step 3/4: Loading face tracker...', 'Loading local FaceLandmarker model...');
+
+  try {
+    try {
+      faceMeshInstance = await createFaceLandmarker('GPU');
+    } catch (gpuError) {
+      log('FaceLandmarker GPU init failed, retrying CPU: ' + (gpuError.message || gpuError));
+      faceMeshInstance = await createFaceLandmarker('CPU');
+    }
+
+    log('FaceLandmarker initialized successfully!');
+    faceMeshReady = true;
+    setStep('Step 3/4: Face tracker ready', 'Waiting for camera...');
+    tryStartCamera();
+    initHandLandmarkerTracker();
+  } catch (e) {
+    log('FaceLandmarker init error: ' + (e.message || e));
+    console.error('FaceLandmarker init error:', e);
+    showError('FaceLandmarker init failed: ' + (e.message || e) + '\n\nPlease refresh or check local model files.');
+  }
+}
+
+function tryStartCamera() {
+  if (!gltfReady || !faceMeshReady || cameraStarted) return;
+  setStep('步骤 4/4: 启动摄像头...');
+  startCamera();
+}
+
+async function pumpFaceFrames() {
+  if (!cameraStarted) return;
+
+  const now = performance.now();
+  if (
+    video.readyState >= 2 &&
+    video.currentTime !== lastCameraFrameTime &&
+    !faceFramePending
+  ) {
+    lastCameraFrameTime = video.currentTime;
+    faceFramePending = true;
+    try {
+      const result = faceMeshInstance.detectForVideo(video, now);
+      if (result && result.faceLandmarks && result.faceLandmarks.length > 0) {
+        currentLandmarks = result.faceLandmarks[0];
+        currentMatrixData = result.facialTransformationMatrixes?.[0]?.data || null;
+        faceFound = true;
+        statusHint.style.opacity = '0';
+      } else {
+        currentLandmarks = null;
+        currentMatrixData = null;
+        faceFound = false;
+      }
+    } catch (e) {
+      log('FaceLandmarker frame error: ' + (e.message || e));
+    } finally {
+      faceFramePending = false;
+    }
+  }
+
+  detectHandSwipe(now);
+  requestAnimationFrame(pumpFaceFrames);
+}
+
+function startCamera() {
+  log('Requesting camera stream...');
+
+  navigator.mediaDevices.getUserMedia({
+    audio: false,
+    video: {
+      facingMode: 'user',
+      width: { ideal: 1280 },
+      height: { ideal: 720 }
+    }
+  }).then(async (stream) => {
+    video.srcObject = stream;
+    await video.play();
+
+    log('Camera started successfully!');
+    cameraStarted = true;
+    loadingEl.classList.add('hidden');
+    hud.style.display = 'block';
+    statusHint.style.display = 'block';
+    setTimeout(() => { debugLog.style.display = 'none'; }, 5000);
+    requestAnimationFrame(pumpFaceFrames);
+    requestAnimationFrame(renderLoop);
+  }).catch((e) => {
+    log('Camera start error: ' + (e.message || e));
+    showError('Camera failed: ' + friendlyCameraError(e));
+  });
+}
+
+initFaceLandmarkerTracker();
+
+function videoToCanvas(vx, vy) {
+  const vW = video.videoWidth, vH = video.videoHeight;
+  const cW = window.innerWidth, cH = window.innerHeight;
+  if (!vW || !vH) return { x: vx, y: vy };
+  const x = MIRROR_VIDEO ? 1 - vx : vx;
+  const vAsp = vW / vH, cAsp = cW / cH;
+  let s, ox, oy;
+  if (vAsp > cAsp) {
+    s = cH / vH;
+    ox = (cW - vW * s) / 2;
+    oy = 0;
+  } else {
+    s = cW / vW;
+    ox = 0;
+    oy = (cH - vH * s) / 2;
+  }
+  const px = x * vW * s + ox;
+  const py = vy * vH * s + oy;
+  return { x: px / cW, y: py / cH };
+}
+
+const swipeState = {
+  active: false,
+  startX: 0,
+  startY: 0,
+  startT: 0,
+  lastX: 0,
+  lastY: 0,
+  lastT: 0,
+  lastSwitchT: 0,
+};
+
+function resetSwipeState() {
+  swipeState.active = false;
+}
+
+function getFaceSwipeBounds(lm) {
+  if (!lm) return null;
+  const indices = [10, 152, 127, 356, 234, 454, 33, 263, 1, 13, 14];
+  let left = Infinity, right = -Infinity, top = Infinity, bottom = -Infinity;
+  for (const idx of indices) {
+    const p = lm[idx];
+    if (!p) continue;
+    const c = videoToCanvas(p.x, p.y);
+    left = Math.min(left, c.x);
+    right = Math.max(right, c.x);
+    top = Math.min(top, c.y);
+    bottom = Math.max(bottom, c.y);
+  }
+  if (!Number.isFinite(left) || right <= left || bottom <= top) return null;
+  const width = right - left;
+  const height = bottom - top;
+  return {
+    left: Math.max(0, left - width * 0.42),
+    right: Math.min(1, right + width * 0.42),
+    top: Math.max(0, top - height * 0.18),
+    bottom: Math.min(1, bottom + height * 0.20),
+    cx: (left + right) / 2,
+    cy: (top + bottom) / 2,
+    width,
+    height,
+  };
+}
+
+function rememberFaceSwipeBounds(lm, now) {
+  const bounds = getFaceSwipeBounds(lm);
+  if (!bounds) return null;
+  lastFaceSwipeBounds = bounds;
+  lastFaceSwipeBoundsT = now;
+  return bounds;
+}
+
+function getPalmCenter(handLm) {
+  const indices = [0, 5, 9, 13, 17];
+  let x = 0, y = 0, n = 0;
+  for (const idx of indices) {
+    const p = handLm?.[idx];
+    if (!p) continue;
+    const c = videoToCanvas(p.x, p.y);
+    x += c.x;
+    y += c.y;
+    n++;
+  }
+  if (!n) return null;
+  return { x: x / n, y: y / n };
+}
+
+function updateSwipeGesture(point, bounds, now) {
+  const nearX = point.x >= bounds.left && point.x <= bounds.right;
+  const nearY = point.y >= bounds.top && point.y <= bounds.bottom;
+  if (!nearX || !nearY) {
+    if (swipeState.active && now - swipeState.lastT > 240) resetSwipeState();
+    return;
+  }
+
+  if (!swipeState.active || now - swipeState.startT > 1100) {
+    swipeState.active = true;
+    swipeState.startX = point.x;
+    swipeState.startY = point.y;
+    swipeState.startT = now;
+    swipeState.lastX = point.x;
+    swipeState.lastY = point.y;
+    swipeState.lastT = now;
+    return;
+  }
+
+  const dx = point.x - swipeState.startX;
+  const dy = point.y - swipeState.startY;
+  const duration = Math.max(now - swipeState.startT, 1);
+  const crossedCenter =
+    Math.min(swipeState.startX, point.x) < bounds.cx - bounds.width * 0.12 &&
+    Math.max(swipeState.startX, point.x) > bounds.cx + bounds.width * 0.12;
+  const enoughDistance = Math.abs(dx) > Math.max(bounds.width * 0.70, 0.18);
+  const verticalStable = Math.abs(dy) < Math.max(bounds.height * 0.65, 0.16);
+  const fastEnough = Math.abs(dx) / duration > 0.00028;
+  const cooledDown = now - swipeState.lastSwitchT > 1500;
+
+  swipeState.lastX = point.x;
+  swipeState.lastY = point.y;
+  swipeState.lastT = now;
+
+  if (crossedCenter && enoughDistance && verticalStable && fastEnough && cooledDown) {
+    swipeState.lastSwitchT = now;
+    resetSwipeState();
+    switchToNextModel();
+  }
+}
+
+function detectHandSwipe(now) {
+  if (!handLandmarkerReady || !handLandmarkerInstance || handFramePending || now - lastHandFrameTime < 85) return;
+  if (video.readyState < 2) return;
+
+  lastHandFrameTime = now;
+  handFramePending = true;
+  try {
+    const result = handLandmarkerInstance.detectForVideo(video, now);
+    const handLm = result?.landmarks?.[0] || null;
+    handFound = Boolean(handLm);
+    if (!handLm) {
+      resetSwipeState();
+      return;
+    }
+    const bounds = currentLandmarks
+      ? rememberFaceSwipeBounds(currentLandmarks, now)
+      : (now - lastFaceSwipeBoundsT < 1500 ? lastFaceSwipeBounds : null);
+    const palm = getPalmCenter(handLm);
+    if (bounds && palm) updateSwipeGesture(palm, bounds, now);
+  } catch (e) {
+    log('HandLandmarker frame error: ' + (e.message || e));
+  } finally {
+    handFramePending = false;
+  }
+}
+
+function renderLoop() {
+  const now = performance.now();
+  frameCount++;
+  if (now - lastFpsT > 1000) {
+    fps = Math.round(frameCount * 1000 / (now - lastFpsT));
+    frameCount = 0;
+    lastFpsT = now;
+  }
+
+  if (currentLandmarks) {
+    faceObj.visible = applyPose(currentLandmarks, currentMatrixData);
+    rememberFaceSwipeBounds(currentLandmarks, now);
+  } else {
+    faceObj.visible = false;
+    poseReady = false;
+  }
+
+  const activeModelName = modelLibrary[activeModelIndex]?.name || '当前面具';
+  hud.textContent = `Face: ${faceFound ? 'tracking' : 'searching'} | Hand: ${handLandmarkerReady ? (handFound ? 'swipe ready' : 'ready') : 'off'} | Mask: ${activeModelName} | FPS: ${fps}`;
+  renderer.render(scene, camera);
+  drawDebugAnchors();
+  requestAnimationFrame(renderLoop);
+}
+
+const debugProject = new THREE.Vector3();
+function worldToDebugScreen(v) {
+  debugProject.copy(v).project(camera);
+  return {
+    x: (debugProject.x * 0.5 + 0.5) * window.innerWidth,
+    y: (-debugProject.y * 0.5 + 0.5) * window.innerHeight,
+    visible: debugProject.z >= -1 && debugProject.z <= 1,
+  };
+}
+
+function drawDebugPoint(ctx, p, color, label) {
+  if (!p.visible) return;
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.fillText(label, p.x + 7, p.y - 7);
+}
+
+function drawDebugAnchors() {
+  if (!DEBUG_ANCHORS || !debugCtx) return;
+  const dpr = Math.min(window.devicePixelRatio, 2);
+  debugCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  debugCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+  if (!faceObj.visible || !poseReady) return;
+
+  debugCtx.lineWidth = 1.5;
+  debugCtx.font = '11px monospace';
+  const labels = {
+    nose: 'N',
+    noseBridge: 'NB',
+    leftEye: 'L',
+    rightEye: 'R',
+    leftCheek: 'LC',
+    rightCheek: 'RC',
+    leftTemple: 'LT',
+    rightTemple: 'RT',
+    leftJaw: 'LJ',
+    rightJaw: 'RJ',
+    forehead: 'F',
+    mouth: 'M',
+    chin: 'C',
+  };
+  for (const key of Object.keys(labels)) {
+    const facePoint = worldToDebugScreen(debugFaceAnchors[key]);
+    const modelPoint = worldToDebugScreen(debugModelAnchors[key]);
+    if (facePoint.visible && modelPoint.visible) {
+      debugCtx.beginPath();
+      debugCtx.moveTo(facePoint.x, facePoint.y);
+      debugCtx.lineTo(modelPoint.x, modelPoint.y);
+      debugCtx.strokeStyle = 'rgba(255,255,255,0.45)';
+      debugCtx.stroke();
+    }
+    drawDebugPoint(debugCtx, facePoint, '#3dd68c', labels[key]);
+    drawDebugPoint(debugCtx, modelPoint, '#ff4fb3', labels[key]);
+  }
+}
+
+function averageLandmark(lm, indices, out) {
+  out.x = 0;
+  out.y = 0;
+  out.z = 0;
+  let n = 0;
+  for (const idx of indices) {
+    const p = lm[idx];
+    if (!p) continue;
+    out.x += p.x;
+    out.y += p.y;
+    out.z += p.z || 0;
+    n++;
+  }
+  if (!n) return null;
+  out.x /= n;
+  out.y /= n;
+  out.z /= n;
+  return out;
+}
+
+function applyPose(lm, matrixData) {
+  const L_EAR = 234, R_EAR = 454;
+  const le = lm[L_EAR], re = lm[R_EAR];
+  const nose = averageLandmark(lm, FACE_LANDMARKS.nose, avgNoseLandmark);
+  const noseBridge = averageLandmark(lm, FACE_LANDMARKS.noseBridge, avgNoseBridgeLandmark);
+  const eyeA = averageLandmark(lm, FACE_LANDMARKS.leftEye, avgLeftEyeLandmark);
+  const eyeB = averageLandmark(lm, FACE_LANDMARKS.rightEye, avgRightEyeLandmark);
+  const cheekA = averageLandmark(lm, FACE_LANDMARKS.leftCheek, avgLeftCheekLandmark);
+  const cheekB = averageLandmark(lm, FACE_LANDMARKS.rightCheek, avgRightCheekLandmark);
+  const templeA = averageLandmark(lm, FACE_LANDMARKS.leftTemple, avgLeftTempleLandmark);
+  const templeB = averageLandmark(lm, FACE_LANDMARKS.rightTemple, avgRightTempleLandmark);
+  const jawA = averageLandmark(lm, FACE_LANDMARKS.leftJaw, avgLeftJawLandmark);
+  const jawB = averageLandmark(lm, FACE_LANDMARKS.rightJaw, avgRightJawLandmark);
+  const forehead = averageLandmark(lm, FACE_LANDMARKS.forehead, avgForeheadLandmark);
+  const mouth = averageLandmark(lm, FACE_LANDMARKS.mouth, avgMouthLandmark);
+  const chin = averageLandmark(lm, FACE_LANDMARKS.chin, avgChinLandmark);
+
+  if (!le || !re || !nose || !noseBridge || !eyeA || !eyeB || !cheekA || !cheekB || !templeA || !templeB || !jawA || !jawB || !forehead || !mouth || !chin) {
+    poseReady = false;
+    return false;
+  }
+
+  const canvasAspect = window.innerWidth / window.innerHeight;
+  const halfTanFOVY = Math.tan(THREE.MathUtils.degToRad(FOV_DEG / 2));
+  const halfTanFOVX = halfTanFOVY * canvasAspect;
+
+  function toC(lmk) { return videoToCanvas(lmk.x, lmk.y); }
+  function toNDC(cx, cy) {
+    return { x: (cx - 0.5) * 2, y: (0.5 - cy) * 2 };
+  }
+
+  const leC = toC(le), reC = toC(re);
+  const noseC = toC(nose), chinC = toC(chin);
+  const eyeAC = toC(eyeA), eyeBC = toC(eyeB);
+  const cheekAC = toC(cheekA), cheekBC = toC(cheekB);
+  const templeAC = toC(templeA), templeBC = toC(templeB);
+  const jawAC = toC(jawA), jawBC = toC(jawB);
+  const screenLeftEyeLandmark = eyeAC.x <= eyeBC.x ? eyeA : eyeB;
+  const screenRightEyeLandmark = eyeAC.x <= eyeBC.x ? eyeB : eyeA;
+  const screenLeftEye = eyeAC.x <= eyeBC.x ? eyeAC : eyeBC;
+  const screenRightEye = eyeAC.x <= eyeBC.x ? eyeBC : eyeAC;
+  const screenLeftCheekLandmark = cheekAC.x <= cheekBC.x ? cheekA : cheekB;
+  const screenRightCheekLandmark = cheekAC.x <= cheekBC.x ? cheekB : cheekA;
+  const screenLeftTempleLandmark = templeAC.x <= templeBC.x ? templeA : templeB;
+  const screenRightTempleLandmark = templeAC.x <= templeBC.x ? templeB : templeA;
+  const screenLeftJawLandmark = jawAC.x <= jawBC.x ? jawA : jawB;
+  const screenRightJawLandmark = jawAC.x <= jawBC.x ? jawB : jawA;
+
+  const leN = toNDC(leC.x, leC.y);
+  const reN = toNDC(reC.x, reC.y);
+  const faceW = Math.abs(reN.x - leN.x) / 2;
+  if (faceW < 0.08) {
+    poseReady = false;
+    return false;
+  }
+
+  const D = FACE_WORLD_WIDTH / (2.0 * faceW * halfTanFOVX);
+  const eyeDx = screenRightEye.x - screenLeftEye.x;
+  const eyeDy = screenRightEye.y - screenLeftEye.y;
+  const rawRZ = THREE.MathUtils.clamp(-Math.atan2(eyeDy, eyeDx), -0.65, 0.65);
+
+  const eyeMidX = (screenLeftEye.x + screenRightEye.x) / 2;
+  const eyeDist = Math.max(Math.abs(screenRightEye.x - screenLeftEye.x), 0.001);
+  const yawRatio = (noseC.x - eyeMidX) / eyeDist;
+  const yawAbs = THREE.MathUtils.clamp(Math.abs(yawRatio), 0, 1.35);
+  const rawRY = THREE.MathUtils.clamp(yawRatio * 2.0, -0.9, 0.9);
+
+  const eyeMidY = (screenLeftEye.y + screenRightEye.y) / 2;
+  const eyeToNoseY = Math.abs(noseC.y - eyeMidY);
+  const eyeToChinY = Math.max(Math.abs(chinC.y - eyeMidY), 0.001);
+  const faceRatio = eyeToNoseY / eyeToChinY;
+  const rawRX = THREE.MathUtils.clamp(-(faceRatio - 0.45) * 3.0, -0.55, 0.55);
+
+  if (matrixData && matrixData.length === 16) {
+    targetMatrix.fromArray(matrixData);
+    if (MIRROR_VIDEO) {
+      targetMatrix.premultiply(mirrorMatrix).multiply(mirrorMatrix);
+    }
+    targetQuat.setFromRotationMatrix(targetMatrix);
+  } else {
+    targetEuler.set(rawRX, rawRY, rawRZ, 'YXZ');
+    targetQuat.setFromEuler(targetEuler);
+  }
+  targetQuat.multiply(maskFacingCorrection);
+  targetQuat.normalize();
+
+  // 锁定朝向：忽略头部姿态，面具保持正面朝向镜头
+  if (orientationLocked) {
+    targetQuat.copy(lockedQuat);
+  }
+
+  function toWorldFeature(lmk, out) {
+    const c = toC(lmk);
+    const n = toNDC(c.x, c.y);
+    return out.set(
+      n.x * D * halfTanFOVX,
+      n.y * D * halfTanFOVY,
+      -D - ((lmk.z || 0) - (nose.z || 0)) * D * FACE_DEPTH_SCALE
+    );
+  }
+
+  toWorldFeature(nose, faceFeatureNose);
+  toWorldFeature(noseBridge, faceFeatureNoseBridge);
+  toWorldFeature(screenLeftEyeLandmark, faceFeatureLeftEye);
+  toWorldFeature(screenRightEyeLandmark, faceFeatureRightEye);
+  toWorldFeature(screenLeftCheekLandmark, faceFeatureLeftCheek);
+  toWorldFeature(screenRightCheekLandmark, faceFeatureRightCheek);
+  toWorldFeature(screenLeftTempleLandmark, faceFeatureLeftTemple);
+  toWorldFeature(screenRightTempleLandmark, faceFeatureRightTemple);
+  toWorldFeature(screenLeftJawLandmark, faceFeatureLeftJaw);
+  toWorldFeature(screenRightJawLandmark, faceFeatureRightJaw);
+  toWorldFeature(forehead, faceFeatureForehead);
+  toWorldFeature(mouth, faceFeatureMouth);
+  toWorldFeature(chin, faceFeatureChin);
+
+  const faceEyeDistance = faceFeatureLeftEye.distanceTo(faceFeatureRightEye);
+  const faceCheekDistance = faceFeatureLeftCheek.distanceTo(faceFeatureRightCheek);
+  const faceTempleDistance = faceFeatureLeftTemple.distanceTo(faceFeatureRightTemple);
+  const faceNoseChinDistance = faceFeatureNose.distanceTo(faceFeatureChin);
+  const modelNoseChinDistance = MODEL_FEATURES.nose.distanceTo(MODEL_FEATURES.chin);
+  const scaleFromEyes = faceEyeDistance / MODEL_EYE_DISTANCE;
+  const scaleFromCheeks = faceCheekDistance / MODEL_CHEEK_DISTANCE;
+  const scaleFromTemples = faceTempleDistance / MODEL_TEMPLE_DISTANCE;
+  const scaleFromChin = faceNoseChinDistance / Math.max(modelNoseChinDistance, 0.001);
+  const targetScale = THREE.MathUtils.clamp(
+    (
+      scaleFromEyes * PROFILE_SCALE_WEIGHTS.eyes +
+      scaleFromCheeks * PROFILE_SCALE_WEIGHTS.cheeks +
+      scaleFromTemples * PROFILE_SCALE_WEIGHTS.temples +
+      scaleFromChin * PROFILE_SCALE_WEIGHTS.chin
+    ) * MASK_FIT_SCALE,
+    0.25,
+    8
+  );
+
+  faceOutDir.set(0, 0, -1).applyQuaternion(targetQuat).normalize();
+  if (faceOutDir.z < 0) faceOutDir.negate();
+  faceOutDir.lerp(cameraForwardDir, THREE.MathUtils.clamp(yawAbs * 0.4, 0, 0.55)).normalize();
+  faceOutDir.multiplyScalar(targetScale * (FACE_SURFACE_OFFSET + yawAbs * FACE_YAW_FORWARD_OFFSET));
+  faceFeatureNose.add(faceOutDir);
+  faceFeatureNoseBridge.add(faceOutDir);
+  faceFeatureLeftEye.add(faceOutDir);
+  faceFeatureRightEye.add(faceOutDir);
+  faceFeatureLeftCheek.add(faceOutDir);
+  faceFeatureRightCheek.add(faceOutDir);
+  faceFeatureLeftTemple.add(faceOutDir);
+  faceFeatureRightTemple.add(faceOutDir);
+  faceFeatureLeftJaw.add(faceOutDir);
+  faceFeatureRightJaw.add(faceOutDir);
+  faceFeatureForehead.add(faceOutDir);
+  faceFeatureMouth.add(faceOutDir);
+  faceFeatureChin.add(faceOutDir);
+
+  function featurePositionFor(facePoint, modelPoint, weight) {
+    featureOffset.copy(modelPoint)
+      .multiplyScalar(targetScale)
+      .applyQuaternion(targetQuat);
+    featureTarget.copy(facePoint).sub(featureOffset);
+    featureSum.addScaledVector(featureTarget, weight);
+    return weight;
+  }
+
+  featureSum.set(0, 0, 0);
+  let totalWeight = 0;
+  const featureBoost = 1 + yawAbs * 0.75;
+  const sideBoost = 1 + yawAbs * 1.4;
+  totalWeight += featurePositionFor(faceFeatureNose, MODEL_FEATURES.nose, PROFILE_WEIGHTS.nose * featureBoost);
+  totalWeight += featurePositionFor(faceFeatureNoseBridge, MODEL_FEATURES.noseBridge, PROFILE_WEIGHTS.noseBridge * featureBoost);
+  totalWeight += featurePositionFor(faceFeatureLeftEye, MODEL_FEATURES.rightEye, PROFILE_WEIGHTS.eyes * featureBoost);
+  totalWeight += featurePositionFor(faceFeatureRightEye, MODEL_FEATURES.leftEye, PROFILE_WEIGHTS.eyes * featureBoost);
+  totalWeight += featurePositionFor(faceFeatureLeftCheek, MODEL_FEATURES.rightCheek, PROFILE_WEIGHTS.cheeks * sideBoost);
+  totalWeight += featurePositionFor(faceFeatureRightCheek, MODEL_FEATURES.leftCheek, PROFILE_WEIGHTS.cheeks * sideBoost);
+  totalWeight += featurePositionFor(faceFeatureLeftTemple, MODEL_FEATURES.rightTemple, PROFILE_WEIGHTS.temples * sideBoost);
+  totalWeight += featurePositionFor(faceFeatureRightTemple, MODEL_FEATURES.leftTemple, PROFILE_WEIGHTS.temples * sideBoost);
+  totalWeight += featurePositionFor(faceFeatureLeftJaw, MODEL_FEATURES.rightJaw, PROFILE_WEIGHTS.jaws * sideBoost);
+  totalWeight += featurePositionFor(faceFeatureRightJaw, MODEL_FEATURES.leftJaw, PROFILE_WEIGHTS.jaws * sideBoost);
+  totalWeight += featurePositionFor(faceFeatureForehead, MODEL_FEATURES.forehead, PROFILE_WEIGHTS.forehead * featureBoost);
+  totalWeight += featurePositionFor(faceFeatureMouth, MODEL_FEATURES.mouth, PROFILE_WEIGHTS.mouth);
+  totalWeight += featurePositionFor(faceFeatureChin, MODEL_FEATURES.chin, PROFILE_WEIGHTS.chin);
+  targetPos.copy(featureSum).divideScalar(totalWeight);
+
+  const a = SMOOTH;
+  if (!poseReady) {
+    smoothPos.copy(targetPos);
+    smoothQuat.copy(targetQuat);
+    sS = targetScale;
+    poseReady = true;
+  } else {
+    smoothPos.lerp(targetPos, 1 - a);
+    smoothQuat.slerp(targetQuat, 1 - a);
+    sS = sS * a + targetScale * (1 - a);
+  }
+
+  faceObj.position.copy(smoothPos);
+  faceObj.quaternion.copy(smoothQuat);
+  faceObj.scale.setScalar(sS);
+
+  if (DEBUG_ANCHORS) {
+    debugFaceAnchors.nose.copy(faceFeatureNose);
+    debugFaceAnchors.noseBridge.copy(faceFeatureNoseBridge);
+    debugFaceAnchors.leftEye.copy(faceFeatureLeftEye);
+    debugFaceAnchors.rightEye.copy(faceFeatureRightEye);
+    debugFaceAnchors.leftCheek.copy(faceFeatureLeftCheek);
+    debugFaceAnchors.rightCheek.copy(faceFeatureRightCheek);
+    debugFaceAnchors.leftTemple.copy(faceFeatureLeftTemple);
+    debugFaceAnchors.rightTemple.copy(faceFeatureRightTemple);
+    debugFaceAnchors.leftJaw.copy(faceFeatureLeftJaw);
+    debugFaceAnchors.rightJaw.copy(faceFeatureRightJaw);
+    debugFaceAnchors.forehead.copy(faceFeatureForehead);
+    debugFaceAnchors.mouth.copy(faceFeatureMouth);
+    debugFaceAnchors.chin.copy(faceFeatureChin);
+    debugModelAnchors.nose.copy(MODEL_FEATURES.nose).multiplyScalar(sS).applyQuaternion(smoothQuat).add(smoothPos);
+    debugModelAnchors.noseBridge.copy(MODEL_FEATURES.noseBridge).multiplyScalar(sS).applyQuaternion(smoothQuat).add(smoothPos);
+    debugModelAnchors.leftEye.copy(MODEL_FEATURES.rightEye).multiplyScalar(sS).applyQuaternion(smoothQuat).add(smoothPos);
+    debugModelAnchors.rightEye.copy(MODEL_FEATURES.leftEye).multiplyScalar(sS).applyQuaternion(smoothQuat).add(smoothPos);
+    debugModelAnchors.leftCheek.copy(MODEL_FEATURES.rightCheek).multiplyScalar(sS).applyQuaternion(smoothQuat).add(smoothPos);
+    debugModelAnchors.rightCheek.copy(MODEL_FEATURES.leftCheek).multiplyScalar(sS).applyQuaternion(smoothQuat).add(smoothPos);
+    debugModelAnchors.leftTemple.copy(MODEL_FEATURES.rightTemple).multiplyScalar(sS).applyQuaternion(smoothQuat).add(smoothPos);
+    debugModelAnchors.rightTemple.copy(MODEL_FEATURES.leftTemple).multiplyScalar(sS).applyQuaternion(smoothQuat).add(smoothPos);
+    debugModelAnchors.leftJaw.copy(MODEL_FEATURES.rightJaw).multiplyScalar(sS).applyQuaternion(smoothQuat).add(smoothPos);
+    debugModelAnchors.rightJaw.copy(MODEL_FEATURES.leftJaw).multiplyScalar(sS).applyQuaternion(smoothQuat).add(smoothPos);
+    debugModelAnchors.forehead.copy(MODEL_FEATURES.forehead).multiplyScalar(sS).applyQuaternion(smoothQuat).add(smoothPos);
+    debugModelAnchors.mouth.copy(MODEL_FEATURES.mouth).multiplyScalar(sS).applyQuaternion(smoothQuat).add(smoothPos);
+    debugModelAnchors.chin.copy(MODEL_FEATURES.chin).multiplyScalar(sS).applyQuaternion(smoothQuat).add(smoothPos);
+  }
+
+  return true;
+}
+
+// ===== AR 控制功能挂载 =====
+let orientationLocked = false;
+const lockedQuat = new THREE.Quaternion();
+const lockedEuler = new THREE.Euler(0, Math.PI, 0, 'YXZ');
+const lockBtn = document.getElementById('lock-btn');
+const shotBtn = document.getElementById('shot-btn');
+const debugBtn = document.getElementById('debug-btn');
+const modelBar = document.getElementById('model-bar');
+
+// 锁定/解锁朝向：锁定时面具只跟随头部位置，不跟随姿态（保持正面朝向镜头）
+window.__arToggleLock = function () {
+  orientationLocked = !orientationLocked;
+  if (orientationLocked) {
+    lockedEuler.set(0, Math.PI, 0, 'YXZ');
+    lockedQuat.setFromEuler(lockedEuler).multiply(maskFacingCorrection).normalize();
+  }
+  if (lockBtn) {
+    lockBtn.textContent = orientationLocked ? '解锁朝向' : '锁定朝向';
+    lockBtn.classList.toggle('active', orientationLocked);
+  }
+  showToast(orientationLocked ? '朝向已锁定：面具保持正面' : '朝向已解锁：跟随头部姿态');
+  log('Orientation lock: ' + (orientationLocked ? 'ON' : 'OFF'));
+};
+
+// 截图：合成 video + three canvas
+window.__arCapture = function () {
+  try {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const out = document.createElement('canvas');
+    out.width = w;
+    out.height = h;
+    const ctx = out.getContext('2d');
+    if (MIRROR_VIDEO) {
+      ctx.save();
+      ctx.scale(-1, 1);
+      ctx.drawImage(video, -w, 0, w, h);
+      ctx.restore();
+    } else {
+      ctx.drawImage(video, 0, 0, w, h);
+    }
+    ctx.drawImage(threeCanvas, 0, 0, w, h);
+    out.toBlob((blob) => {
+      if (!blob) { showToast('截图失败'); return; }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ar-wear-${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      showToast('已保存截图');
+    }, 'image/png');
+  } catch (e) {
+    log('Capture error: ' + (e.message || e));
+    showToast('截图失败');
+  }
+};
+
+// 调试锚点开关
+window.__arToggleDebug = function () {
+  DEBUG_ANCHORS = !DEBUG_ANCHORS;
+  debugCanvas.style.display = DEBUG_ANCHORS ? 'block' : 'none';
+  if (debugBtn) debugBtn.classList.toggle('active', DEBUG_ANCHORS);
+  showToast(DEBUG_ANCHORS ? '锚点可视化已开启' : '锚点可视化已关闭');
+};
+// 初始同步
+if (DEBUG_ANCHORS) { debugBtn.classList.add('active'); }
+
+// 模型选择条：点击切换
+window.__arSelectMask = function (idx) {
+  if (modelSwitching || idx === activeModelIndex || idx < 0 || idx >= modelLibrary.length) return;
+  const target = modelLibrary[idx];
+  showGestureHint(`切换:${target.name || '面具'}`);
+  modelSwitching = true;
+  loadMaskModel(target.url, target.wearProfile, { label: target.name || '面具' })
+    .then(() => { activeModelIndex = idx; renderModelBar(); })
+    .catch((e) => { log('Select mask failed: ' + (e.message || e)); showToast('切换失败'); })
+    .finally(() => { setTimeout(() => { modelSwitching = false; }, 650); });
+};
+
+function renderModelBar() {
+  if (!modelBar) return;
+  modelBar.innerHTML = '';
+  modelLibrary.forEach((item, idx) => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'model-chip' + (idx === activeModelIndex ? ' active' : '');
+    chip.textContent = item.name || `面具 ${idx + 1}`;
+    chip.title = item.name || item.url;
+    chip.addEventListener('click', () => window.__arSelectMask(idx));
+    modelBar.appendChild(chip);
+  });
+}
+
+// 初次渲染模型条（待 modelLibrary 就绪后会重渲染）
+renderModelBar();
+</script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+{
+  "name": "sanxingdui-archaeology-ar",
+  "version": "1.0.0",
+  "description": "三星堆考古挖掘→AI修复→AR戴脸完整体验系统",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "server": "node server.js",
+    "all": "concurrently \"npm run server\" \"npm run dev\"",
+    "build": "vite build",
+    "preview": "vite preview",
+    "share": "concurrently -k -n api,frontend,tunnel -c green,blue,cyan \"npm run server\" \"npm --prefix frontend run dev -- --host 127.0.0.1 --port 5174\" \"cloudflared tunnel --protocol http2 --edge-ip-version 4 --url http://127.0.0.1:5174\""
+  },
+  "dependencies": {
+    "@mediapipe/tasks-vision": "^0.10.14",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "gsap": "^3.12.5",
+    "three": "^0.165.0"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "vite": "^5.3.0"
+  }
+}

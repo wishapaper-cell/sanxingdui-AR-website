@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>面具模型结构分析</title>
+<style>
+  body { margin:0; background:#111; color:#c8a96e; font-family:"Microsoft YaHei",sans-serif; }
+  #info { padding:12px; font-size:13px; line-height:1.6; }
+  canvas { display:block; margin:0 auto; background:#1a1a2e; }
+  .mark { color:#7fff7f; }
+</style>
+</head>
+<body>
+<div id="info">加载中...</div>
+<canvas id="c" width="800" height="600"></canvas>
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const info = document.getElementById('info');
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setSize(800, 600);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, 800/600, 0.01, 100);
+camera.position.set(0, 0, 1.5);
+const controls = new OrbitControls(camera, canvas);
+scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+const d = new THREE.DirectionalLight(0xffffff, 1); d.position.set(2,2,3); scene.add(d);
+
+async function loadGlb(url) {
+  const r = await fetch(url);
+  const buf = await r.arrayBuffer();
+  return new Promise((res, rej) => new GLTFLoader().parse(buf, '', g => res(g.scene), rej));
+}
+
+loadGlb('http://127.0.0.1:3001/generated/ar-mask-1783170815532.glb').then(m => {
+  scene.add(m);
+  const box = new THREE.Box3().setFromObject(m);
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  // 归一化到原点,宽度=1
+  const s = 1 / Math.max(size.x, 0.001);
+  m.scale.set(s, s, s);
+  m.position.set(-center.x*s, -center.y*s, -center.z*s);
+  m.rotation.set(0, Math.PI, 0);
+
+  // 收集所有顶点
+  const verts = [];
+  m.traverse(o => {
+    if (o.isMesh && o.geometry) {
+      const pos = o.geometry.attributes.position;
+      o.updateMatrixWorld();
+      const v = new THREE.Vector3();
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
+        verts.push([v.x, v.y, v.z]);
+      }
+    }
+  });
+
+  // 找特征点(模型正面朝 -Z 时,即 rotation Y=PI 后)
+  // 现在模型已经旋转,顶点在世界坐标
+  // 假设面具正面朝镜头(-Z 方向是脸的正面)
+  // 左眼孔:Y 上半部,X 左侧(负),Z 接近正面
+  // 右眼孔:Y 上半部,X 右侧(正),Z 接近正面
+  // 鼻孔:Y 中部,X=0,Z 最前(最负)
+  // 下巴:Y 最低,X=0
+  // 鼻尖:Y 中部,X=0,Z 最前
+
+  // 按 Y 分层找
+  const sortedByY = [...verts].sort((a,b) => b[1] - a[1]);
+  const topY = sortedByY[0][1];
+  const bottomY = sortedByY[sortedByY.length-1][1];
+  const midY = (topY + bottomY) / 2;
+
+  // 上半部(Y > midY)分左右
+  const upper = verts.filter(v => v[1] > midY + (topY-midY)*0.3);
+  const leftUpper = upper.filter(v => v[0] < 0).sort((a,b) => a[2] - b[2]); // Z 最负=最前
+  const rightUpper = upper.filter(v => v[0] > 0).sort((a,b) => a[2] - b[2]);
+
+  // 中部(Y 接近 midY)X≈0,Z 最前 = 鼻尖
+  const mid = verts.filter(v => Math.abs(v[1] - midY) < (topY-midY)*0.15 && Math.abs(v[0]) < size.x*s*0.15);
+  const noseTip = mid.sort((a,b) => a[2] - b[2])[0];
+
+  // 下巴:Y 最低
+  const chin = sortedByY[Math.floor(sortedByY.length * 0.02)];
+
+  // 鼻根:鼻尖上方,Y 介于鼻尖和眼睛之间,X≈0
+  const noseRoot = noseTip ? verts.filter(v => Math.abs(v[0]) < 0.05 && v[1] > noseTip[1] && v[1] < noseTip[1] + (topY - noseTip[1])*0.4).sort((a,b) => a[2] - b[2])[0] : null;
+
+  // 左眼中心:左上区域 Z 最前的点附近取平均
+  const leftEyeAvg = leftUpper.slice(0, 50).reduce((acc, v) => [acc[0]+v[0], acc[1]+v[1], acc[2]+v[2]], [0,0,0]).map(x => x/50);
+  const rightEyeAvg = rightUpper.slice(0, 50).reduce((acc, v) => [acc[0]+v[0], acc[1]+v[1], acc[2]+v[2]], [0,0,0]).map(x => x/50);
+
+  // 显示
+  let html = `<div class="mark">面具顶点数: ${verts.length}</div>`;
+  html += `<div>Bounding box: 宽=${(size.x*s).toFixed(3)} 高=${(size.y*s).toFixed(3)} 深=${(size.z*s).toFixed(3)}</div>`;
+  html += `<div>顶部Y=${topY.toFixed(3)} 底部Y=${bottomY.toFixed(3)} 中线Y=${midY.toFixed(3)}</div>`;
+  html += `<div class="mark">--- 推测的面具特征点(模型局部坐标,宽度归一化到1)---</div>`;
+  html += `<div>鼻尖 noseTip: [${noseTip ? noseTip.map(x=>x.toFixed(3)).join(', ') : '未找到'}]</div>`;
+  html += `<div>鼻根 noseRoot: [${noseRoot ? noseRoot.map(x=>x.toFixed(3)).join(', ') : '未找到'}]</div>`;
+  html += `<div>左眼 leftEye: [${leftEyeAvg.map(x=>x.toFixed(3)).join(', ')}]</div>`;
+  html += `<div>右眼 rightEye: [${rightEyeAvg.map(x=>x.toFixed(3)).join(', ')}]</div>`;
+  html += `<div>下巴 chin: [${chin.map(x=>x.toFixed(3)).join(', ')}]</div>`;
+  html += `<div class="mark">--- 用球体标记这些点(绿色=鼻尖,红色=鼻根,蓝色=双眼,黄色=下巴)---</div>`;
+  info.innerHTML = html;
+
+  // 在场景中加球标记
+  const mark = (pos, color) => {
+    const g = new THREE.SphereGeometry(0.03, 12, 12);
+    const m = new THREE.MeshBasicMaterial({ color });
+    const s = new THREE.Mesh(g, m);
+    s.position.set(pos[0], pos[1], pos[2]);
+    scene.add(s);
+  };
+  if (noseTip) mark(noseTip, 0x00ff00);
+  if (noseRoot) mark(noseRoot, 0xff0000);
+  mark(leftEyeAvg, 0x0088ff);
+  mark(rightEyeAvg, 0x0088ff);
+  mark(chin, 0xffff00);
+
+  function animate() { controls.update(); renderer.render(scene, camera); requestAnimationFrame(animate); }
+  animate();
+}).catch(e => { info.innerHTML = '<span style="color:#f66">加载失败: ' + e.message + '</span>'; });
+</script>
+</body>
+</html>

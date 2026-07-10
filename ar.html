@@ -1,0 +1,2022 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>三星堆 AR 戴脸 · 面具追踪</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #000; color: #e4e6eb; font-family: 'Microsoft YaHei', sans-serif; overflow: hidden; }
+  #app { position: relative; width: 100vw; height: 100vh; }
+
+  /* 视频与 3D 画布层叠 */
+  #video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+  #canvas-3d { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+  /* 2D 关键点可视化层(与视频同样镜像,叠在 3D 之上) */
+  #canvas-2d { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 6; transform: scaleX(-1); }
+
+  /* 暗角与祭祀氛围遮罩 */
+  #vignette {
+    position: absolute; inset: 0; pointer-events: none; z-index: 5;
+    background: radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.55) 100%);
+  }
+
+  /* HUD 状态面板 */
+  #hud {
+    position: absolute; top: 16px; left: 16px; z-index: 10;
+    background: rgba(15,17,23,0.85); border: 1px solid #2d3142;
+    border-radius: 10px; padding: 14px 18px; font-size: 13px; line-height: 1.7;
+    backdrop-filter: blur(8px); min-width: 280px;
+  }
+  #hud .title { color: #a5b4fc; font-weight: 700; margin-bottom: 8px; font-size: 14px; }
+  #hud .row { display: flex; justify-content: space-between; color: #9ca3af; }
+  #hud .row .val { color: #10b981; font-family: Consolas, monospace; }
+  #hud .row.warn .val { color: #f59e0b; }
+  #hud .row.err .val { color: #ef4444; }
+  #hud .hint { margin-top: 10px; padding-top: 10px; border-top: 1px solid #2d3142; color: #f59e0b; font-size: 12px; }
+
+  /* 神力色决策面板 */
+  #affinity {
+    position: absolute; top: 16px; right: 16px; z-index: 10;
+    background: rgba(15,17,23,0.85); border: 1px solid #2d3142;
+    border-radius: 10px; padding: 14px 18px; font-size: 13px;
+    backdrop-filter: blur(8px); display: none;
+  }
+  #affinity .title { color: #f59e0b; font-weight: 700; margin-bottom: 10px; font-size: 14px; }
+  #affinity .opt { display: flex; align-items: center; gap: 8px; padding: 6px 0; cursor: pointer; color: #9ca3af; }
+  #affinity .opt input { accent-color: #f59e0b; }
+  #affinity .opt span.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+  /* 认主状态提示(屏幕中部下方) */
+  #ritual {
+    position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%);
+    z-index: 10; text-align: center; display: none;
+  }
+  #ritual .stage { font-size: 22px; font-weight: 700; letter-spacing: 4px; text-shadow: 0 0 20px rgba(255,170,51,0.6); }
+  #ritual .desc { margin-top: 8px; font-size: 14px; color: #c7c9d1; }
+  #ritual .progress { margin-top: 12px; width: 260px; height: 4px; background: rgba(255,255,255,0.12); border-radius: 2px; overflow: hidden; }
+  #ritual .progress > i { display: block; height: 100%; width: 0%; background: linear-gradient(90deg,#ffaa33,#ffd9a0); transition: width .1s linear; }
+
+  /* 跳过认主兜底按钮 */
+  #skip-btn {
+    position: absolute; bottom: 16px; right: 16px; z-index: 10;
+    padding: 8px 16px; font-size: 13px; color: #c7c9d1;
+    background: rgba(15,17,23,0.85); border: 1px solid #2d3142;
+    border-radius: 8px; cursor: pointer; display: none;
+  }
+  #skip-btn:hover { color: #f59e0b; border-color: #f59e0b; }
+
+  /* 启动按钮 */
+  #start-btn {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    z-index: 20; padding: 16px 40px; font-size: 18px; font-weight: 700;
+    background: linear-gradient(135deg,#6366f1,#a855f7); color: #fff;
+    border: none; border-radius: 12px; cursor: pointer;
+    box-shadow: 0 8px 30px rgba(99,102,241,0.4); transition: transform .2s;
+  }
+  #start-btn:hover { transform: translate(-50%,-50%) scale(1.05); }
+  #start-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* AI 面具生成面板(左下)—— ar.html 中隐藏,改由 URL 参数自动加载 */
+  #gen-panel {
+    position: absolute; bottom: 16px; left: 16px; z-index: 10;
+    background: rgba(15,17,23,0.85); border: 1px solid #2d3142;
+    border-radius: 10px; padding: 14px 16px; font-size: 13px;
+    backdrop-filter: blur(8px); width: 320px;
+    display: none !important;
+  }
+
+  /* ar.html 顶部面具加载提示条 */
+  #mask-loader {
+    position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+    z-index: 30; padding: 10px 20px; font-size: 13px;
+    background: rgba(15,17,23,0.9); border: 1px solid #d4a857;
+    border-radius: 8px; color: #f5e8c8; display: none;
+    backdrop-filter: blur(8px); max-width: 80%; text-align: center;
+  }
+  #mask-loader.err { border-color: #ef4444; color: #fecaca; }
+  #mask-loader.ok { border-color: #10b981; color: #d1fae5; }
+  #gen-panel .title { color: #f59e0b; font-weight: 700; margin-bottom: 10px; font-size: 14px; }
+  #gen-panel .row { display: flex; gap: 8px; margin-bottom: 8px; }
+  #gen-panel input[type="text"] {
+    flex: 1; padding: 8px 10px; background: rgba(0,0,0,0.3);
+    border: 1px solid #2d3142; border-radius: 6px; color: #e4e6eb;
+    font-size: 13px; font-family: inherit;
+  }
+  #gen-panel input[type="text"]::placeholder { color: #6b7280; }
+  #gen-panel input[type="text"]:focus { outline: none; border-color: #f59e0b; }
+  #gen-panel input[type="file"] { display: none; }
+  #gen-panel .upload-label {
+    padding: 8px 12px; background: rgba(245,158,11,0.15);
+    color: #f59e0b; border: 1px solid #f59e0b; border-radius: 6px;
+    font-size: 13px; cursor: pointer; white-space: nowrap;
+  }
+  #gen-panel .upload-label:hover { background: rgba(245,158,11,0.25); }
+  #gen-panel button {
+    padding: 8px 16px; background: linear-gradient(135deg,#f59e0b,#d97706);
+    color: #fff; border: none; border-radius: 6px; font-size: 13px;
+    font-weight: 600; cursor: pointer; white-space: nowrap;
+  }
+  #gen-panel button:disabled { opacity: 0.5; cursor: not-allowed; }
+  #gen-panel button:hover:not(:disabled) { transform: translateY(-1px); }
+  #gen-panel .progress {
+    margin-top: 6px; padding: 8px 10px; background: rgba(0,0,0,0.3);
+    border-radius: 6px; font-size: 12px; color: #9ca3af; display: none;
+  }
+  #gen-panel .progress.active { display: block; }
+  #gen-panel .progress .bar {
+    margin-top: 6px; height: 3px; background: rgba(255,255,255,0.1);
+    border-radius: 2px; overflow: hidden;
+  }
+  #gen-panel .progress .bar > i {
+    display: block; height: 100%; width: 0%;
+    background: linear-gradient(90deg,#f59e0b,#fbbf24);
+    transition: width .3s ease;
+  }
+  #gen-panel .preview {
+    margin-top: 8px; display: none; cursor: pointer;
+    border: 1px solid #2d3142; border-radius: 6px; overflow: hidden;
+  }
+  #gen-panel .preview.active { display: block; }
+  #gen-panel .preview img { display: block; width: 100%; }
+  #gen-panel .status-err { color: #ef4444; }
+  #gen-panel .status-ok { color: #10b981; }
+  #gen-panel .hint { margin-top: 8px; font-size: 11px; color: #6b7280; line-height: 1.5; }
+
+  /* 认主瞬间全屏闪光遮罩 */
+  #flash {
+    position: absolute; inset: 0; z-index: 8; pointer-events: none;
+    background: radial-gradient(circle at center, rgba(255,200,120,0.85), transparent 60%);
+    opacity: 0;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="canvas-3d"></canvas>
+  <canvas id="canvas-2d"></canvas>
+  <div id="vignette"></div>
+  <div id="flash"></div>
+  <div id="mask-loader">面具加载中...</div>
+
+  <div id="hud" style="display:none">
+    <div class="title">三星堆 AR 视觉系统</div>
+    <div class="row"><span>状态</span><span class="val" id="st-state">初始化</span></div>
+    <div class="row"><span>认主阶段</span><span class="val" id="st-stage">扫描态</span></div>
+    <div class="row"><span>人脸检测</span><span class="val" id="st-face">未检测</span></div>
+    <div class="row"><span>4x4矩阵</span><span class="val" id="st-mat">无</span></div>
+    <div class="row"><span>睁眼 EAR</span><span class="val" id="st-ear">—</span></div>
+    <div class="row"><span>抬头 pitch</span><span class="val" id="st-pitch">—</span></div>
+    <div class="row"><span>表情(嘴)</span><span class="val" id="st-mouth">—</span></div>
+    <div class="row"><span>手部检测</span><span class="val" id="st-hand">—</span></div>
+    <div class="row"><span>手势</span><span class="val" id="st-gesture">—</span></div>
+    <div class="row"><span>指尖位置</span><span class="val" id="st-fingertip">—</span></div>
+    <div class="row"><span>手势动作</span><span class="val" id="st-action">—</span></div>
+    <div class="row"><span>当前面具</span><span class="val" id="st-mask">青铜纵目</span></div>
+    <div class="row"><span>关键点数</span><span class="val" id="st-lm">0</span></div>
+    <div class="row"><span>左眼/右眼</span><span class="val" id="st-eyes">—/—</span></div>
+    <div class="row"><span>眉/鼻/嘴</span><span class="val" id="st-parts">—</span></div>
+    <div class="row"><span>Three.js贴合</span><span class="val" id="st-render">未渲染</span></div>
+    <div class="row"><span>Bloom后处理</span><span class="val" id="st-bloom">未启用</span></div>
+    <div class="row"><span>FPS</span><span class="val" id="st-fps">0</span></div>
+    <div class="hint">验证目标:转头面具跟随3D透视 · 纵目bloom溢光 · 认主三层动画 · 张嘴联动</div>
+    <div class="hint">手势操作:认主后捏合切换神力色 · 指向爆发粒子</div>
+    <div class="hint">变脸:认主后手横向划过脸部,自动切换面具(京剧变脸式)</div>
+    <div class="hint" style="display:flex;gap:12px;align-items:center;">
+      <label style="display:flex;align-items:center;gap:4px;cursor:pointer;color:#9ca3af;">
+        <input type="checkbox" id="toggle-landmarks" checked style="accent-color:#a5b4fc;">关键点可视化
+      </label>
+      <label style="display:flex;align-items:center;gap:4px;cursor:pointer;color:#9ca3af;">
+        <input type="checkbox" id="toggle-mesh" style="accent-color:#a5b4fc;">三角网格
+      </label>
+    </div>
+  </div>
+
+  <div id="affinity">
+    <div class="title">神力色(认主解锁)</div>
+    <label class="opt"><input type="radio" name="af" value="gold" checked><span class="dot" style="background:#ffaa33"></span>纵目 · 暖金</label>
+    <label class="opt"><input type="radio" name="af" value="jade"><span class="dot" style="background:#3dd68c"></span>云雷 · 青绿</label>
+    <label class="opt"><input type="radio" name="af" value="pure"><span class="dot" style="background:#ffd700"></span>金面 · 纯金</label>
+  </div>
+
+  <div id="ritual">
+    <div class="stage" id="ritual-stage">扫描中</div>
+    <div class="desc" id="ritual-desc">青铜面具正在审视你...</div>
+    <div class="progress"><i id="ritual-bar"></i></div>
+  </div>
+
+  <button id="skip-btn">跳过认主(兜底)</button>
+  <button id="start-btn">启动 AR 视觉系统</button>
+
+  <!-- AI 面具生成面板(文字→seedream三视角→混元3D多视角融合→戴脸上) -->
+  <div id="gen-panel">
+    <div class="title">AI 面具生成(三视角 → 多视角融合 3D)</div>
+    <div class="row">
+      <input type="text" id="gen-prompt" placeholder="输入面具描述,如:青铜纵目面具,三星堆风格" maxlength="200">
+      <button id="gen-btn">生成面具</button>
+    </div>
+    <div class="progress" id="gen-progress">
+      <div id="gen-status">准备中...</div>
+      <div class="bar"><i id="gen-bar"></i></div>
+    </div>
+    <div class="preview" id="gen-preview">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;">
+        <img id="gen-view-front" alt="正视图" style="width:100%;">
+        <img id="gen-view-left" alt="左视图" style="width:100%;">
+        <img id="gen-view-right" alt="右视图" style="width:100%;">
+        <img id="gen-view-back" alt="后视图" style="width:100%;">
+      </div>
+    </div>
+    <div class="hint" id="gen-hint">流程:文字描述 → seedream 生成四视角图(正/左/右/后) → 混元3D 多视角融合生成一个 GLB → 自动戴到脸上。全程约 3-6 分钟。需先启动后端 <code>npm run server</code>。</div>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { gsap } from 'gsap';
+
+// MediaPipe FaceLandmarker + HandLandmarker(按设计文档 §3.3 动态加载,首页不被 3D/视觉库拖累)
+const { FaceLandmarker, HandLandmarker, FilesetResolver } = await import('@mediapipe/tasks-vision');
+
+// ===== DOM 引用 =====
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas-3d');
+const canvas2d = document.getElementById('canvas-2d');
+const ctx2d = canvas2d.getContext('2d');
+const hud = document.getElementById('hud');
+const affinityBox = document.getElementById('affinity');
+const ritualBox = document.getElementById('ritual');
+const ritualStage = document.getElementById('ritual-stage');
+const ritualDesc = document.getElementById('ritual-desc');
+const ritualBar = document.getElementById('ritual-bar');
+const skipBtn = document.getElementById('skip-btn');
+const flashEl = document.getElementById('flash');
+const startBtn = document.getElementById('start-btn');
+const toggleLm = document.getElementById('toggle-landmarks');
+const toggleMesh = document.getElementById('toggle-mesh');
+// AI 面具生成面板引用
+const genBtn = document.getElementById('gen-btn');
+const genPrompt = document.getElementById('gen-prompt');
+const genProgress = document.getElementById('gen-progress');
+const genStatus = document.getElementById('gen-status');
+const genBar = document.getElementById('gen-bar');
+const genPreview = document.getElementById('gen-preview');
+const genViewFront = document.getElementById('gen-view-front');
+const genViewLeft = document.getElementById('gen-view-left');
+const genViewRight = document.getElementById('gen-view-right');
+const genViewBack = document.getElementById('gen-view-back');
+const genHint = document.getElementById('gen-hint');
+const st = {
+  state: document.getElementById('st-state'),
+  stage: document.getElementById('st-stage'),
+  face: document.getElementById('st-face'),
+  mat: document.getElementById('st-mat'),
+  ear: document.getElementById('st-ear'),
+  pitch: document.getElementById('st-pitch'),
+  mouth: document.getElementById('st-mouth'),
+  hand: document.getElementById('st-hand'),
+  gesture: document.getElementById('st-gesture'),
+  fingertip: document.getElementById('st-fingertip'),
+  action: document.getElementById('st-action'),
+  mask: document.getElementById('st-mask'),
+  lm: document.getElementById('st-lm'),
+  eyes: document.getElementById('st-eyes'),
+  parts: document.getElementById('st-parts'),
+  render: document.getElementById('st-render'),
+  bloom: document.getElementById('st-bloom'),
+  fps: document.getElementById('st-fps'),
+};
+
+// ===== 高频瞬态值(对应 React useRef 思路,不进 UI state,避免重渲染开销)=====
+let faceLandmarker = null;
+let handLandmarker = null;
+let filesetResolver = null;
+let three = null;
+let lastVideoTime = -1;
+let frameCount = 0;
+let fpsStart = performance.now();
+
+// 认主状态机:scan → verify → claim(对应设计文档 §6.1)
+let ritualPhase = 'scan'; // scan | verify | claim | done
+let verifyStableStart = 0;     // 验证态稳定计时起点
+const VERIFY_STABLE_MS = 1500; // 1.5s 稳定窗口
+
+// 手势状态(§7 拓展:手势驱动动作)
+let prevGesture = 'none';      // 上一帧手势(用于边沿触发:捏合切换)
+let pinchCooldown = 0;         // 捏合切换冷却(ms),防连按
+let pointCooldown = 0;         // 指向爆发冷却(ms)
+let handFrameToggle = false;   // 隔帧检测开关,降低双模型 GPU 占用
+
+// 变脸系统:手横向划过脸部切换面具(京剧变脸式)
+// 支持 GLB 模型切换 + 材质预设切换
+const MASK_PRESETS = [
+  { name: '青铜纵目', faceColor: 0x8a6d3b, eyeColor: 0xb8995a, emissive: 0xffaa33, rustCoverage: 0.35 },
+  { name: '金面使者', faceColor: 0xd4a847, eyeColor: 0xffd700, emissive: 0xffd700, rustCoverage: 0.08 },
+  { name: '云雷青玉', faceColor: 0x3a7d6a, eyeColor: 0x3dd68c, emissive: 0x3dd68c, rustCoverage: 0.20 },
+  { name: '玄铁祭司', faceColor: 0x2a2a35, eyeColor: 0x9a8cff, emissive: 0x6a5acd, rustCoverage: 0.45 },
+];
+
+// GLB 模型列表管理
+const GLB_MODELS = [
+  { name: '青铜纵目面具', path: '/gltf/mask.glb', type: 'fixed' },
+  { name: '三星堆面具 A', path: '/gltf/5b81d915043f2d52feb2c2024fbfcb6a.glb', type: 'fixed' },
+];
+let currentMaskIdx = 0;
+let currentGLBIdx = -1; // -1 表示使用程序化面具，>=0 表示使用 GLB 模型
+let maskChangeCooldown = 0;             // 变脸冷却(ms),防连触发
+const MASK_CHANGE_COOLDOWN_MS = 1000;
+let lastFaceBox = null;                 // 脸部包围盒(归一化),供变脸划过检测用
+const swipeState = { prevX: null, prevTime: 0 };  // 划过动作状态机(基于瞬时速度)
+
+// 当前加载的 GLB 模型引用
+let loadedGLBModels = []; // 存储已加载的 GLB scene 对象
+const gltfLoader = new GLTFLoader(); // GLB 模型加载器
+
+// 神力色决策向量(对应 §4.2 决策向量驱动,用于认主苏醒配色)
+let affinity = 'gold'; // gold | jade | pure
+affinityBox.addEventListener('change', (e) => { affinity = e.target.value; });
+// 手势捏合切换神力色(与单选按钮联动)
+const AFFINITY_CYCLE = ['gold', 'jade', 'pure'];
+function cycleAffinityByGesture() {
+  const idx = AFFINITY_CYCLE.indexOf(affinity);
+  affinity = AFFINITY_CYCLE[(idx + 1) % AFFINITY_CYCLE.length];
+  affinityBox.value = affinity; // 同步 UI 单选
+}
+
+// 兜底:性能不足时关闭 bloom(对应 §8.2)
+let bloomEnabled = true;
+
+// ===== Three.js 初始化(渲染核心:envMap + 三点布光 + Bloom)=====
+function initThree() {
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  // 像素比上限 2,防 4K 屏过载(§8.1)
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+  camera.position.set(0, 0, 5);
+
+  // 环境贴图:程序化生成 RoomEnvironment,金属表面反射环境光(§4.1 关键——无 envMap 金属呈死灰)
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environment = envTex;
+
+  // 三点布光(§4.3):暖主光 + 冷补光 + 轮廓光 + 微环境光
+  const keyLight = new THREE.DirectionalLight(0xffd9a0, 2.0);
+  keyLight.position.set(2, 2, 3);
+  scene.add(keyLight);
+
+  const fillLight = new THREE.DirectionalLight(0x6b8aff, 0.8);
+  fillLight.position.set(-2, 1, 2);
+  scene.add(fillLight);
+
+  const rimLight = new THREE.DirectionalLight(0xffaa55, 1.2);
+  rimLight.position.set(0, 1, -3);
+  scene.add(rimLight);
+
+  scene.add(new THREE.AmbientLight(0x333344, 0.3));
+
+  // ===== 程序化青铜面具几何(§5 验证原型路线,不依赖外部 GLB)=====
+  const maskGroup = new THREE.Group();
+  scene.add(maskGroup);
+
+  // 主体:扁球脸型
+  const faceGeo = new THREE.SphereGeometry(1.0, 64, 64);
+  faceGeo.scale(0.85, 1.15, 0.5);
+  const faceMat = new THREE.MeshStandardMaterial({
+    color: 0x8a6d3b,          // 青铜底色
+    metalness: 0.9,           // 青铜是金属
+    roughness: 0.4,           // 半光泽,有岁月感
+    emissive: 0x000000,
+    emissiveIntensity: 0,
+    envMapIntensity: 1.0,     // 环境反射强度
+    transparent: true,
+    opacity: 1.0,
+  });
+  const face = new THREE.Mesh(faceGeo, faceMat);
+  maskGroup.add(face);
+
+  // 铜锈层:第二层 ShaderMaterial,用 simplex noise 控制绿色斑块(§4.2 参数化视觉落点)
+  const rustUniforms = {
+    uTime: { value: 0 },
+    uCoverage: { value: 0.35 },   // 铜锈覆盖率(决策向量可调)
+    uSeed: { value: Math.random() * 100 },
+  };
+  const rustMat = new THREE.ShaderMaterial({
+    uniforms: rustUniforms,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.NormalBlending,
+    vertexShader: `
+      varying vec3 vPos;
+      varying vec3 vNormal;
+      void main() {
+        vPos = position;
+        vNormal = normal;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      // 简化 simplex noise(程序化,无需外部纹理)
+      varying vec3 vPos;
+      varying vec3 vNormal;
+      uniform float uTime;
+      uniform float uCoverage;
+      uniform float uSeed;
+      vec3 mod289(vec3 x){return x-floor(x*(1.0/289.0))*289.0;}
+      vec4 mod289(vec4 x){return x-floor(x*(1.0/289.0))*289.0;}
+      vec4 permute(vec4 x){return mod289(((x*34.0)+1.0)*x);}
+      vec4 taylorInvSqrt(vec4 r){return 1.79284291400159-0.85373472095314*r;}
+      float snoise(vec3 v){
+        const vec2 C=vec2(1.0/6.0,1.0/3.0); const vec4 D=vec4(0.0,0.5,1.0,2.0);
+        vec3 i=floor(v+dot(v,C.yyy)); vec3 x0=v-i+dot(i,C.xxx);
+        vec3 g=step(x0.yzx,x0.xyz); vec3 l=1.0-g; vec3 i1=min(g.xyz,l.zxy); vec3 i2=max(g.xyz,l.zxy);
+        vec3 x1=x0-i1+C.xxx; vec3 x2=x0-i2+C.yyy; vec3 x3=x0-D.yyy;
+        i=mod289(i);
+        vec4 p=permute(permute(permute(i.z+vec4(0.0,i1.z,i2.z,1.0))+i.y+vec4(0.0,i1.y,i2.y,1.0))+i.x+vec4(0.0,i1.x,i2.x,1.0));
+        float n_=0.142857142857; vec3 ns=n_*D.wyz-D.xzx;
+        vec4 j=p-49.0*floor(p*ns.z*ns.z);
+        vec4 x_=floor(j*ns.z); vec4 y_=floor(j-7.0*x_);
+        vec4 x=x_*ns.x+ns.yyyy; vec4 y=y_*ns.x+ns.yyyy; vec4 h=1.0-abs(x)-abs(y);
+        vec4 b0=vec4(x.xy,y.xy); vec4 b1=vec4(x.zw,y.zw);
+        vec4 s0=floor(b0)*2.0+1.0; vec4 s1=floor(b1)*2.0+1.0; vec4 sh=-step(h,vec4(0.0));
+        vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy; vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;
+        vec3 p0=vec3(a0.xy,h.x); vec3 p1=vec3(a0.zw,h.y); vec3 p2=vec3(a1.xy,h.z); vec3 p3=vec3(a1.zw,h.w);
+        vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));
+        p0*=norm.x; p1*=norm.y; p2*=norm.z; p3*=norm.w;
+        vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0); m=m*m;
+        return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));
+      }
+      void main(){
+        float n = snoise(vPos * 2.5 + vec3(uSeed));
+        float n2 = snoise(vPos * 6.0 - vec3(uSeed));
+        float patch = smoothstep(1.0 - uCoverage, 1.0, n * 0.5 + 0.5 + n2 * 0.15);
+        // 铜锈绿青斑(孔雀绿 + 斑驳)
+        vec3 rust = mix(vec3(0.18,0.45,0.32), vec3(0.35,0.6,0.45), n2*0.5+0.5);
+        // 边缘略暗,贴合曲面
+        float fres = pow(1.0 - max(dot(normalize(vNormal), vec3(0.0,0.0,1.0)), 0.0), 2.0);
+        float alpha = patch * (0.55 + fres * 0.35);
+        gl_FragColor = vec4(rust, alpha);
+      }
+    `,
+  });
+  const rustLayer = new THREE.Mesh(faceGeo, rustMat);
+  rustLayer.scale.copy(face.scale);
+  maskGroup.add(rustLayer);
+
+  // 纵目:两个凸出圆柱(三星堆标志性纵目)
+  const eyeGeo = new THREE.CylinderGeometry(0.12, 0.15, 0.5, 32);
+  const eyeMat = new THREE.MeshStandardMaterial({
+    color: 0xb8995a, metalness: 0.95, roughness: 0.3,
+    emissive: 0xffaa33, emissiveIntensity: 0,
+  });
+  const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+  leftEye.rotation.x = Math.PI / 2;
+  leftEye.position.set(-0.32, 0.25, 0.45);
+  maskGroup.add(leftEye);
+  const rightEye = leftEye.clone();
+  rightEye.material = eyeMat; // 共享材质,苏醒时左右纵目同步发光
+  rightEye.position.x = 0.32;
+  maskGroup.add(rightEye);
+
+  // 嘴部装饰条(张嘴联动反馈点)
+  const mouthGeo = new THREE.BoxGeometry(0.8, 0.08, 0.1);
+  const mouthMat = new THREE.MeshStandardMaterial({
+    color: 0x6a5230, metalness: 0.85, roughness: 0.5,
+    emissive: 0xffaa33, emissiveIntensity: 0,
+  });
+  const mouth = new THREE.Mesh(mouthGeo, mouthMat);
+  mouth.position.set(0, -0.45, 0.42);
+  maskGroup.add(mouth);
+
+  // 耳朵:两个侧向扁圆柱,强化三星堆造型
+  const earGeo = new THREE.CylinderGeometry(0.18, 0.22, 0.15, 24);
+  const earMat = new THREE.MeshStandardMaterial({ color: 0x7a5f30, metalness: 0.9, roughness: 0.45 });
+  const leftEar = new THREE.Mesh(earGeo, earMat);
+  leftEar.rotation.z = Math.PI / 2;
+  leftEar.position.set(-0.85, 0.1, 0);
+  maskGroup.add(leftEar);
+  const rightEar = leftEar.clone();
+  rightEar.position.x = 0.85;
+  maskGroup.add(rightEar);
+
+  // 额头云雷纹装饰条(神力注入点之一)
+  const runeGeo = new THREE.TorusGeometry(0.35, 0.03, 12, 32, Math.PI);
+  const runeMat = new THREE.MeshStandardMaterial({
+    color: 0x9a7d4a, metalness: 0.9, roughness: 0.35,
+    emissive: 0xffaa33, emissiveIntensity: 0,
+  });
+  const rune = new THREE.Mesh(runeGeo, runeMat);
+  rune.position.set(0, 0.55, 0.4);
+  rune.rotation.z = Math.PI;
+  maskGroup.add(rune);
+
+  // ===== 扫描态:面具半透明 + 扫描线 shader 叠加层(§6.1 扫描态视觉)=====
+  const scanUniforms = {
+    uTime: { value: 0 },
+    uActive: { value: 1.0 }, // 0=隐藏,1=扫描中
+  };
+  const scanMat = new THREE.ShaderMaterial({
+    uniforms: scanUniforms,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    vertexShader: `
+      varying vec3 vPos;
+      void main(){ vPos = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }
+    `,
+    fragmentShader: `
+      varying vec3 vPos;
+      uniform float uTime;
+      uniform float uActive;
+      void main(){
+        // 上下扫动的亮带
+        float line = smoothstep(0.0, 0.05, 0.05 - abs(fract(vPos.y * 1.5 - uTime * 0.6) - 0.5));
+        vec3 col = vec3(0.4, 0.8, 1.0) * line;
+        // 网格扫描线
+        float grid = step(0.97, fract(vPos.x * 18.0)) + step(0.97, fract(vPos.y * 18.0));
+        col += vec3(0.1,0.3,0.5) * grid * 0.4;
+        gl_FragColor = vec4(col, (line * 0.8 + grid * 0.15) * uActive);
+      }
+    `,
+  });
+  const scanLayer = new THREE.Mesh(faceGeo, scanMat);
+  scanLayer.scale.copy(face.scale);
+  scanLayer.scale.multiplyScalar(1.02);
+  maskGroup.add(scanLayer);
+
+  // ===== 粒子系统:认主爆发(§6.2 第3层,青铜碎屑 + 金光汇聚)=====
+  const PARTICLE_COUNT = 600;
+  const pPositions = new Float32Array(PARTICLE_COUNT * 3);
+  const pVelocities = new Float32Array(PARTICLE_COUNT * 3);
+  const pSeeds = new Float32Array(PARTICLE_COUNT);
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    pPositions[i*3] = 0; pPositions[i*3+1] = 0; pPositions[i*3+2] = 0;
+    pVelocities[i*3] = (Math.random() - 0.5) * 4;
+    pVelocities[i*3+1] = (Math.random() - 0.5) * 4;
+    pVelocities[i*3+2] = (Math.random() - 0.5) * 4;
+    pSeeds[i] = Math.random();
+  }
+  const pGeo = new THREE.BufferGeometry();
+  pGeo.setAttribute('position', new THREE.BufferAttribute(pPositions, 3));
+  pGeo.setAttribute('aSeed', new THREE.BufferAttribute(pSeeds, 1));
+  const pMat = new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+      uBurst: { value: 0 },     // 0=静止,1=爆发
+      uColor: { value: new THREE.Color(0xffaa33) },
+      uPixelRatio: { value: renderer.getPixelRatio() },
+    },
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    vertexShader: `
+      attribute float aSeed;
+      uniform float uTime;
+      uniform float uBurst;
+      uniform float uPixelRatio;
+      varying float vSeed;
+      void main(){
+        vSeed = aSeed;
+        vec3 p = position;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+        gl_PointSize = (2.0 + aSeed * 4.0) * uBurst * uPixelRatio;
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 uColor;
+      uniform float uBurst;
+      varying float vSeed;
+      void main(){
+        vec2 c = gl_PointCoord - 0.5;
+        float d = length(c);
+        if(d > 0.5) discard;
+        float a = smoothstep(0.5, 0.0, d) * uBurst * (0.6 + vSeed * 0.4);
+        gl_FragColor = vec4(uColor, a);
+      }
+    `,
+  });
+  const particles = new THREE.Points(pGeo, pMat);
+  particles.visible = false;
+  scene.add(particles);
+
+  // ===== 后处理:Bloom(§4.4)=====
+  const composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  const bloomPass = new UnrealBloomPass(
+    new THREE.Vector2(window.innerWidth, window.innerHeight),
+    0.8,  // strength
+    0.4,  // radius
+    0.3   // threshold:只有 emissive 亮区溢光,青铜主体不糊
+  );
+  composer.addPass(bloomPass);
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    composer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  st.render.textContent = '已就绪';
+  st.bloom.textContent = '已启用';
+
+  // WebGL 上下文丢失监听:显存不足或 GPU 崩溃时触发,降级并提示
+  // 不处理会导致渲染彻底停止(页面看起来"卡死"但 JS 仍在跑)
+  renderer.domElement.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault();
+    console.error('[WebGL] context lost — degrading');
+    bloomEnabled = false;
+    st.render.textContent = 'GPU 上下文丢失';
+    st.render.parentElement.classList.add('err');
+    st.bloom.textContent = '已降级(上下文丢失)';
+  }, false);
+
+  return {
+    renderer, scene, camera, composer, bloomPass,
+    maskGroup, faceMat, rustMat, rustUniforms, eyeMat,
+    leftEye, rightEye, mouth, mouthMat, rune, runeMat,
+    scanMat, scanUniforms,
+    particles, pMat, pGeo, pPositions, pVelocities,
+    awakened: false,
+  };
+}
+
+// ===== MediaPipe FaceLandmarker 初始化(§3.1 数据流)=====
+// 使用 public 目录下的本地 wasm 文件,避免 CDN 返回错误 MIME 类型导致加载失败
+async function initFaceLandmarker() {
+  filesetResolver = await FilesetResolver.forVisionTasks(
+    '/mediapipe-wasm'
+  );
+  faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
+    baseOptions: {
+      modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+      delegate: 'GPU',
+    },
+    outputFaceBlendshapes: true,                // 52 表情系数(表情联动)
+    outputFacialTransformationMatrixes: true,   // 4x4 头部姿态矩阵(渲染贴合)
+    runningMode: 'VIDEO',
+    numFaces: 1,
+  });
+  st.state.textContent = '模型已加载';
+}
+
+// ===== MediaPipe HandLandmarker 初始化(§7 拓展:手势驱动动作)=====
+// 与 FaceLandmarker 共用同一 FilesetResolver(wasm 已加载),仅多加载手部模型权重
+// 关键:delegate 用 CPU,避免与人脸 GPU 模型竞争同一 WebGL 上下文导致互相踢掉
+// (手部模型仅 21 关键点,比人脸 468 点轻量,CPU 推理 10-15ms 可接受)
+async function initHandLandmarker() {
+  handLandmarker = await HandLandmarker.createFromOptions(filesetResolver, {
+    baseOptions: {
+      modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
+      delegate: 'CPU',
+    },
+    runningMode: 'VIDEO',
+    numHands: 1,
+  });
+  st.hand.textContent = '模型就绪';
+}
+
+// ===== 启动摄像头(参考 sa-myback 实现:ideal 约束 + 超时兜底)=====
+async function startCamera() {
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }
+    });
+  } catch (e) {
+    // 把具体错误类型翻译成可读提示,避免用户只看到"重试"不明所以
+    if (e && e.name === 'NotAllowedError') throw new Error('摄像头权限被拒绝,请在地址栏点击锁形图标允许摄像头后重试');
+    if (e && e.name === 'NotFoundError') throw new Error('未找到摄像头设备');
+    if (e && e.name === 'NotReadableError') throw new Error('摄像头被其他程序占用,请关闭占用程序后重试');
+    if (e && e.name === 'OverconstrainedError') throw new Error('摄像头不满足 720p 约束,尝试降低分辨率');
+    throw new Error('摄像头启动失败: ' + (e && e.name ? e.name : '未知错误'));
+  }
+  video.srcObject = stream;
+
+  // 等待视频元数据加载,带 4s 超时兜底(参考 sa-myback + 原代码超时机制)
+  await new Promise((resolve) => {
+    let done = false;
+    const finish = () => { if (!done) { done = true; clearTimeout(timer); resolve(); } };
+    const timer = setTimeout(finish, 4000); // 4s 超时兜底
+    // 如果视频已有元数据,直接完成
+    if (video.readyState >= 1) { finish(); return; }
+    video.onloadedmetadata = finish;
+  });
+
+  // 关键:必须 play() 才会推进 currentTime,否则 currentTime 恒为 0,
+  // trackLoop 的"新帧判断"永远不成立 → 检测不到脸/手。
+  try { await video.play(); }
+  catch (e) { console.warn('[Camera] play() failed (non-fatal):', e); }
+
+  // 诊断日志:确认视频流真正就绪
+  console.log('[Camera] readyState=', video.readyState,
+              'videoWidth=', video.videoWidth, 'videoHeight=', video.videoHeight,
+              'currentTime=', video.currentTime, 'paused=', video.paused);
+  st.state.textContent = '摄像头已启动';
+}
+
+// ===== 神力色映射(§6.2 纵目=暖金/云雷=青绿/金面=纯金)=====
+function affinityColor(af) {
+  if (af === 'jade') return new THREE.Color(0x3dd68c);
+  if (af === 'pure') return new THREE.Color(0xffd700);
+  return new THREE.Color(0xffaa33); // gold 默认
+}
+
+// ===== 认主条件检测(§6.3:eyeAspectRatio + pitch + 1.5s 稳定)=====
+// eyeAspectRatio = 关键点159-145垂直距离 / 33-133水平距离,>0.2 判定睁眼
+function computeEAR(landmarks) {
+  if (!landmarks || landmarks.length < 200) return 0;
+  // MediaPipe 归一化坐标(0~1)
+  const p33 = landmarks[33], p133 = landmarks[133];   // 左眼水平
+  const p159 = landmarks[159], p145 = landmarks[145]; // 左眼垂直
+  const dx = Math.hypot(p33.x - p133.x, p33.y - p133.y);
+  const dy = Math.hypot(p159.x - p145.x, p159.y - p145.y);
+  return dx > 1e-6 ? dy / dx : 0;
+}
+
+// pitch:从矩阵解算欧拉角(矩阵→四元数→欧拉),>5° 判定抬头
+function computePitch(matrixData) {
+  const m = new THREE.Matrix4().fromArray(matrixData);
+  const q = new THREE.Quaternion().setFromRotationMatrix(m);
+  const e = new THREE.Euler().setFromQuaternion(q, 'YXZ');
+  return THREE.MathUtils.radToDeg(e.x);
+}
+
+// ===== 认主状态机驱动(§6.1 三态)=====
+function setRitualPhase(phase) {
+  ritualPhase = phase;
+  st.stage.textContent = ({scan:'扫描态', verify:'验证态', claim:'认主态', done:'认主完成'})[phase];
+  if (phase === 'scan') {
+    ritualBox.style.display = 'block';
+    ritualStage.textContent = '扫描中';
+    ritualDesc.textContent = '青铜面具正在审视你...';
+    ritualBar.style.width = '0%';
+    skipBtn.style.display = 'block';
+    // 扫描态:面具半透明 + 扫描线激活
+    gsap.to(three.faceMat, { opacity: 0.55, duration: 0.6 });
+    three.scanUniforms.uActive.value = 1.0;
+    three.maskGroup.position.set(0, 0, 0);
+  } else if (phase === 'verify') {
+    ritualStage.textContent = '请睁眼并抬头';
+    ritualDesc.textContent = '保持 1.5 秒以通过认主验证';
+    ritualBar.style.width = '0%';
+  } else if (phase === 'claim') {
+    ritualStage.textContent = '神力附身';
+    ritualDesc.textContent = '面具已认主,表情将驱动纹饰';
+    ritualBar.style.width = '100%';
+    skipBtn.style.display = 'none';
+    triggerAwakening();
+  } else if (phase === 'done') {
+    // 认主完成:保留 ritualBox 展示手势操作指引(不隐藏)
+    ritualStage.textContent = '认主完成';
+    ritualDesc.textContent = '捏合切换神力色 · 指向爆发粒子';
+    ritualBar.style.width = '100%';
+  }
+}
+
+// ===== 三层苏醒动画(§6.2:emissive变色 + metalness光波 + 粒子爆发)=====
+function triggerAwakening() {
+  if (three.awakened) return;
+  three.awakened = true;
+  const col = affinityColor(affinity);
+
+  // 扫描线淡出,面具从半透明回到实体
+  gsap.to(three.scanUniforms.uActive, { value: 0, duration: 0.4 });
+  gsap.to(three.faceMat, { opacity: 1.0, duration: 0.6 });
+
+  // 第1层(0–0.5s):emissive 从黑渐变到神力色
+  gsap.to(three.faceMat.emissive, { r: col.r, g: col.g, b: col.b, duration: 0.5, ease: 'power2.in' });
+  gsap.to(three.faceMat, { emissiveIntensity: 0.6, duration: 0.5 });
+  gsap.to(three.eyeMat, { emissiveIntensity: 2.8, duration: 0.5 });
+  gsap.to(three.leftEye.material, { emissiveIntensity: 2.8, duration: 0.5 });
+  gsap.to(three.runeMat.emissive, { r: col.r, g: col.g, b: col.b, duration: 0.5 });
+  gsap.to(three.runeMat, { emissiveIntensity: 2.0, duration: 0.5 });
+
+  // 第2层(0.3–0.8s):metalness 短暂降到 0.2 再回弹,神力注入光波
+  gsap.timeline()
+    .to(three.faceMat, { metalness: 0.2, duration: 0.25, ease: 'power2.out' }, 0.3)
+    .to(three.faceMat, { metalness: 0.9, duration: 0.25, ease: 'power2.in' });
+
+  // 第3层(0.5–1.2s):粒子爆发(青铜碎屑飞散 + 金光)
+  burstParticles(col);
+
+  // 全屏闪光遮罩
+  gsap.timeline()
+    .to(flashEl, { opacity: 1, duration: 0.15 }, 0.4)
+    .to(flashEl, { opacity: 0, duration: 0.6 }, 0.55);
+
+  // 苏醒完成后进入 done 态
+  gsap.delayedCall(1.3, () => setRitualPhase('done'));
+}
+
+// ===== 粒子爆发驱动 =====
+const PARTICLE_COUNT = 600; // 与 initThree 内粒子数量保持一致
+let burstActive = false;
+let burstStart = 0;
+function burstParticles(color) {
+  burstActive = true;
+  burstStart = performance.now();
+  three.particles.visible = true;
+  three.pMat.uniforms.uColor.value.copy(color);
+  // 粒子起点为面具中心
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    three.pPositions[i*3] = 0;
+    three.pPositions[i*3+1] = 0;
+    three.pPositions[i*3+2] = 0;
+  }
+  three.pGeo.attributes.position.needsUpdate = true;
+  gsap.timeline()
+    .to(three.pMat.uniforms.uBurst, { value: 1.0, duration: 0.2 }, 0)
+    .to(three.pMat.uniforms.uBurst, { value: 0.0, duration: 0.7, ease: 'power2.out' }, 0.5);
+}
+
+// ===== 指向手势:定向粒子爆发(指尖方向)=====
+// fingerTip: 归一化坐标 {x,y};angle: 屏幕坐标系弧度(y 朝下)
+// 把 2D 屏幕方向映射到 3D 空间:x 直接映射,y 取反(屏幕下→3D 下),z 向前
+function burstParticlesToward(fingerTip, angle) {
+  // 防重入:爆发进行中不触发新爆发(否则粒子系统被反复重置,可能导致 GPU 资源抖动)
+  if (burstActive) return;
+  burstActive = true;
+  burstStart = performance.now();
+  three.particles.visible = true;
+  three.pMat.uniforms.uColor.value.copy(affinityColor(affinity));
+  // 屏幕方向单位向量(注意 canvas-2d 有 scaleX(-1) 镜像,但 angle 基于原始 landmarks,无需再翻转)
+  const dx = Math.cos(angle);
+  const dy = Math.sin(angle);
+  // 映射到 3D:y 取反(屏幕 y 朝下,3D y 朝上);x 沿用;z 向前(+2)让粒子向观察者飞出
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    three.pPositions[i*3] = 0;       // 起点面具中心
+    three.pPositions[i*3+1] = 0;
+    three.pPositions[i*3+2] = 0;
+    // 速度:主方向 + 少量散布
+    const spread = 0.5;
+    three.pVelocities[i*3]   = (dx + (Math.random()-0.5)*spread) * 3.5;
+    three.pVelocities[i*3+1] = (-dy + (Math.random()-0.5)*spread) * 3.5;
+    three.pVelocities[i*3+2] = 2.0 + Math.random() * 1.5;  // 向前飞
+  }
+  three.pGeo.attributes.position.needsUpdate = true;
+  gsap.timeline()
+    .to(three.pMat.uniforms.uBurst, { value: 1.0, duration: 0.15 }, 0)
+    .to(three.pMat.uniforms.uBurst, { value: 0.0, duration: 0.6, ease: 'power2.out' }, 0.4);
+}
+
+function updateParticles(dt) {
+  if (!burstActive) return;
+  const elapsed = (performance.now() - burstStart) / 1000;
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    const vx = three.pVelocities[i*3], vy = three.pVelocities[i*3+1], vz = three.pVelocities[i*3+2];
+    three.pPositions[i*3]   += vx * dt;
+    three.pPositions[i*3+1] += vy * dt;
+    three.pPositions[i*3+2] += vz * dt;
+    // 轻微重力 + 阻尼
+    three.pVelocities[i*3+1] -= 1.2 * dt;
+  }
+  three.pGeo.attributes.position.needsUpdate = true;
+  if (elapsed > 1.3) { burstActive = false; three.particles.visible = false; }
+}
+
+// ===== 变脸系统:手横向划过脸部切换面具(京剧变脸式)=====
+
+// 应用面具预设:切换底色/纵目色/emissive/铜锈覆盖率
+function applyMaskPreset(idx) {
+  const p = MASK_PRESETS[idx];
+  three.faceMat.color.setHex(p.faceColor);
+  three.eyeMat.color.setHex(p.eyeColor);
+  three.eyeMat.emissive.setHex(p.emissive);
+  three.mouthMat.emissive.setHex(p.emissive);
+  three.runeMat.emissive.setHex(p.emissive);
+  three.rustUniforms.uCoverage.value = p.rustCoverage;
+  if (st.mask) st.mask.textContent = p.name;
+}
+
+// 检测手横向划过脸部:手腕进入脸部区域 + 横向瞬时速度足够大
+// 返回 'left'/'right'/null,方向仅用于日志,变脸特效不区分方向
+// 判据:用相邻检测帧的位移差算瞬时速度,快速划过(哪怕只采到 2 帧)也能触发
+function detectSwipeOverFace(handLm, faceBox, now) {
+  if (!handLm || !faceBox) return null;
+  const wrist = handLm[0];
+  // 手腕在脸部包围盒内才算"划过脸部"
+  const inFace = wrist.x > faceBox.minX && wrist.x < faceBox.maxX &&
+                 wrist.y > faceBox.minY && wrist.y < faceBox.maxY;
+  if (!inFace) {
+    swipeState.prevX = null;
+    swipeState.prevTime = 0;
+    return null;
+  }
+  // 第一帧:只记录,不判定(需要两帧才能算速度)
+  if (swipeState.prevX === null) {
+    swipeState.prevX = wrist.x;
+    swipeState.prevTime = now;
+    return null;
+  }
+  const dt = now - swipeState.prevTime;
+  if (dt <= 0) return null; // 防除零
+  const dx = wrist.x - swipeState.prevX;
+  // 瞬时横向速度(归一化坐标 / ms)
+  const speed = Math.abs(dx) / dt;
+  // 判据:横向速度 > 0.0008/ms(约 0.8 归一化单位/秒)
+  // 相当于 100ms 内横向移动 0.08(约脸宽 1/8),快速划过必触发
+  // 慢速移动(如调整姿势)速度通常 < 0.0003/ms,不会误触发
+  if (speed > 0.0008) {
+    const dir = dx > 0 ? 'right' : 'left';
+    swipeState.prevX = null; // 触发后重置,下次进入重新计时
+    return dir;
+  }
+  // 未触发:更新参考帧,持续追踪手腕轨迹(支持连续多帧累积判断)
+  swipeState.prevX = wrist.x;
+  swipeState.prevTime = now;
+  return null;
+}
+
+// ===== GLB 模型切换系统 =====
+
+// 切换到指定 GLB 模型
+function switchToGLBModel(idx) {
+  if (idx < 0 || idx >= loadedGLBModels.length) return;
+  
+  // 隐藏当前 GLB 模型
+  loadedGLBModels.forEach((model, i) => {
+    if (model && model.parent) {
+      model.visible = (i === idx);
+    }
+  });
+  
+  currentGLBIdx = idx;
+  const modelName = GLB_MODELS[idx]?.name || `GLB 模型 ${idx + 1}`;
+  if (st.mask) st.mask.textContent = modelName;
+  console.log('[GLB Switch] 切换到:', modelName);
+}
+
+// 预加载固定 GLB 模型
+async function preloadFixedGLBModels() {
+  console.log('[GLB] 开始预加载固定模型...');
+  
+  for (let i = 0; i < GLB_MODELS.length; i++) {
+    const modelInfo = GLB_MODELS[i];
+    try {
+      const glb = await new Promise((resolve, reject) => {
+        gltfLoader.load(
+          modelInfo.path,
+          (gltf) => resolve(gltf),
+          undefined,
+          (err) => reject(new Error(`GLB 加载失败: ${err.message || err}`))
+        );
+      });
+      
+      // 处理模型（居中、缩放、朝向）
+      const scene = glb.scene;
+      const box = new THREE.Box3().setFromObject(scene);
+      const size = new THREE.Vector3();
+      const center = new THREE.Vector3();
+      box.getSize(size);
+      box.getCenter(center);
+      
+      // 归一化：最大边缩放到 1.2，居中到原点
+      const maxDim = Math.max(size.x, size.y, size.z, 0.001);
+      const scale = 1.2 / maxDim;
+      scene.scale.setScalar(scale);
+      scene.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
+      
+      // 调整朝向：让面具正面面向摄像头
+      scene.rotation.y = Math.PI;
+      
+      // 初始隐藏
+      scene.visible = false;
+      
+      // 添加到 maskGroup
+      three.maskGroup.add(scene);
+      loadedGLBModels.push(scene);
+      
+      console.log(`[GLB] 加载成功: ${modelInfo.name} (${i + 1}/${GLB_MODELS.length})`);
+    } catch (e) {
+      console.warn(`[GLB] 加载失败: ${modelInfo.name}`, e);
+      loadedGLBModels.push(null); // 占位，保持索引对应
+    }
+  }
+  
+  // 如果有成功加载的模型，切换到第一个
+  const firstValidIdx = loadedGLBModels.findIndex(m => m !== null);
+  if (firstValidIdx >= 0) {
+    switchToGLBModel(firstValidIdx);
+    console.log(`[GLB] 预加载完成，共 ${loadedGLBModels.filter(m => m !== null).length} 个模型`);
+  }
+}
+
+// 添加 AI 生成的模型到切换列表
+function addAIModelToSwitchList(glbScene, modelName = 'AI 生成面具') {
+  // 处理模型（居中、缩放、朝向）
+  const box = new THREE.Box3().setFromObject(glbScene);
+  const size = new THREE.Vector3();
+  const center = new THREE.Vector3();
+  box.getSize(size);
+  box.getCenter(center);
+  
+  const maxDim = Math.max(size.x, size.y, size.z, 0.001);
+  const scale = 1.2 / maxDim;
+  glbScene.scale.setScalar(scale);
+  glbScene.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
+  glbScene.rotation.y = Math.PI;
+  
+  // 初始隐藏
+  glbScene.visible = false;
+  
+  // 添加到 maskGroup
+  three.maskGroup.add(glbScene);
+  
+  // 添加到切换列表
+  GLB_MODELS.push({ name: modelName, path: 'ai-generated', type: 'ai' });
+  loadedGLBModels.push(glbScene);
+  
+  console.log(`[GLB] AI 模型已添加到切换列表: ${modelName}`);
+}
+
+// 触发变脸:闪光 + 粒子爆发 + 切换面具参数或 GLB 模型
+function triggerMaskChange() {
+  // 优先切换 GLB 模型，如果没有 GLB 模型则切换材质预设
+  const validModels = loadedGLBModels.filter(m => m !== null);
+  if (validModels.length > 0) {
+    // 找到下一个有效模型
+    let nextIdx = currentGLBIdx;
+    do {
+      nextIdx = (nextIdx + 1) % loadedGLBModels.length;
+    } while (loadedGLBModels[nextIdx] === null && nextIdx !== currentGLBIdx);
+    
+    if (loadedGLBModels[nextIdx] !== null) {
+      switchToGLBModel(nextIdx);
+      const col = new THREE.Color(0xffaa33); // 默认金色粒子
+      burstParticles(col);
+      gsap.timeline()
+        .to(flashEl, { opacity: 0.7, duration: 0.08 }, 0)
+        .to(flashEl, { opacity: 0, duration: 0.3 }, 0.08);
+      return;
+    }
+  }
+  
+  // Fallback: 切换材质预设
+  currentMaskIdx = (currentMaskIdx + 1) % MASK_PRESETS.length;
+  const newPreset = MASK_PRESETS[currentMaskIdx];
+  const col = new THREE.Color(newPreset.emissive);
+
+  // 变脸三段式(总时长 ~0.4s):
+  // 1) 0-0.1s:emissive 暴增到白光,遮盖切换瞬间
+  gsap.to(three.faceMat, { emissiveIntensity: 2.5, duration: 0.1 });
+  gsap.to(three.eyeMat, { emissiveIntensity: 5.0, duration: 0.1 });
+
+  // 2) 0.1s:在白光峰值瞬间切换面具参数(观众看不清切换边界)
+  gsap.delayedCall(0.1, () => { applyMaskPreset(currentMaskIdx); });
+
+  // 3) 0.1-0.4s:emissive 从白光渐变回认主态正常值,新面具色显露
+  gsap.to(three.faceMat, { emissiveIntensity: 0.6, duration: 0.3, delay: 0.1 });
+  gsap.to(three.eyeMat, { emissiveIntensity: 2.8, duration: 0.3, delay: 0.1 });
+  gsap.to(three.mouthMat, { emissiveIntensity: 0.3, duration: 0.3, delay: 0.1 });
+  gsap.to(three.runeMat, { emissiveIntensity: 2.0, duration: 0.3, delay: 0.1 });
+
+  // 粒子爆发(新面具色,呼应切换)
+  burstParticles(col);
+
+  // 全屏闪光遮罩(加重视觉冲击)
+  gsap.timeline()
+    .to(flashEl, { opacity: 0.7, duration: 0.08 }, 0)
+    .to(flashEl, { opacity: 0, duration: 0.3 }, 0.08);
+}
+
+// ===== 表情驱动联动(§7:张嘴/眨眼/微笑)=====
+function applyExpression(blendshapes) {
+  if (!blendshapes || ritualPhase !== 'done') return;
+  let mouthOpen = 0, eyeBlink = 0, mouthSmile = 0;
+  for (const bs of blendshapes) {
+    const n = bs.categoryName;
+    if (n === 'jawOpen') mouthOpen = bs.score;
+    else if (n === 'eyeBlinkLeft' || n === 'eyeBlinkRight') eyeBlink = Math.max(eyeBlink, bs.score);
+    else if (n === 'mouthSmileLeft' || n === 'mouthSmileRight') mouthSmile = Math.max(mouthSmile, bs.score);
+  }
+  st.mouth.textContent = mouthOpen.toFixed(2);
+  // 张嘴:嘴部装饰条亮起
+  if (mouthOpen > 0.3) {
+    gsap.to(three.mouthMat, { emissiveIntensity: 2.0, duration: 0.15 });
+  } else {
+    gsap.to(three.mouthMat, { emissiveIntensity: 0.3, duration: 0.3 });
+  }
+  // 眨眼:纵目闪烁
+  if (eyeBlink > 0.5) {
+    gsap.to(three.eyeMat, { emissiveIntensity: 4.0, duration: 0.1, yoyo: true, repeat: 1 });
+  }
+  // 微笑:眼部亮度增强
+  if (mouthSmile > 0.3) {
+    gsap.to(three.eyeMat, { emissiveIntensity: 3.4, duration: 0.3 });
+  }
+}
+
+// ===== 手势检测:识别 palm/fist/pinch/point 四种手势(§7 拓展)=====
+// HandLandmarker 21 关键点:0腕,1-4拇指,5-8食指,9-12中指,13-16无名指,17-20小指
+function dist2D(a, b) {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+// 单指伸直判定:用"向量方向"判据,对快速运动和关键点抖动鲁棒
+// 思路:指尖→PIP 向量应与 PIP→腕向量同向(都指向手腕方向),且指尖更远离腕
+// 判据:tip-PIP 与 pip-wrist 的点积 > 0(同向)+ 指尖到腕距离 >= PIP到腕距离(更远)
+// 这种判据对单帧抖动不敏感,因为只比较方向,不依赖精确距离比
+function isFingerExtended(lm, tip, pip, wrist) {
+  const tx = lm[tip].x - lm[pip].x, ty = lm[tip].y - lm[pip].y;     // PIP→TIP 向量
+  const px = lm[pip].x - lm[wrist].x, py = lm[pip].y - lm[wrist].y; // wrist→PIP 向量
+  // 指尖应"远离"腕:tip-wrist 距离 > pip-wrist 距离(无 1.1 系数,纯方向判据更鲁棒)
+  const far = dist2D(lm[tip], lm[wrist]) > dist2D(lm[pip], lm[wrist]);
+  // 指尖方向与"掌根→PIP"方向夹角 < 90°(同向,用点积 > 0 判定)
+  const sameDir = (tx * px + ty * py) > 0;
+  return far && sameDir;
+}
+// 张开手掌:四指(食/中/无名/小)均伸直 + 拇指横向伸展
+function isOpenPalm(lm) {
+  if (!lm || lm.length < 21) return false;
+  const w = 0;
+  const index  = isFingerExtended(lm, 8,  6,  w);
+  const middle = isFingerExtended(lm, 12, 10, w);
+  const ring   = isFingerExtended(lm, 16, 14, w);
+  const pinky  = isFingerExtended(lm, 20, 18, w);
+  // 拇指横向伸展:指尖离腕比 MCP 离腕更远(拇指检测噪声大,单独放宽)
+  const thumb  = dist2D(lm[4], lm[w]) > dist2D(lm[2], lm[w]);
+  return index && middle && ring && pinky && thumb;
+}
+
+// ===== 多手势识别(§7 拓展:手势驱动不同动作)=====
+// 握拳:四指均弯曲
+function isFist(lm) {
+  if (!lm || lm.length < 21) return false;
+  const w = 0;
+  const index  = !isFingerExtended(lm, 8,  6,  w);
+  const middle = !isFingerExtended(lm, 12, 10, w);
+  const ring   = !isFingerExtended(lm, 16, 14, w);
+  const pinky  = !isFingerExtended(lm, 20, 18, w);
+  return index && middle && ring && pinky;
+}
+// 指向手势:仅食指伸直,中/无名/小指弯曲
+function isPointing(lm) {
+  if (!lm || lm.length < 21) return false;
+  const w = 0;
+  const index  = isFingerExtended(lm, 8,  6,  w);
+  const middle = !isFingerExtended(lm, 12, 10, w);
+  const ring   = !isFingerExtended(lm, 16, 14, w);
+  const pinky  = !isFingerExtended(lm, 20, 18, w);
+  return index && !middle && !ring && !pinky;
+}
+// 捏合:拇指尖(4)与食指尖(8)距离 < 食指 MCP(5)到腕(0)距离 × 0.3
+function isPinch(lm) {
+  if (!lm || lm.length < 21) return false;
+  const w = 0;
+  const pinchD = dist2D(lm[4], lm[8]);
+  const refD  = dist2D(lm[5], lm[w]);
+  return pinchD < refD * 0.3;
+}
+// 综合手势分类:返回 { gesture, fingerTip, angle }
+function classifyGesture(lm) {
+  if (!lm || lm.length < 21) return { gesture: 'none' };
+  if (isPinch(lm))    return { gesture: 'pinch',  fingerTip: lm[8], angle: Math.atan2(lm[8].y - lm[5].y, lm[8].x - lm[5].x) };
+  if (isFist(lm))     return { gesture: 'fist',   fingerTip: lm[0], angle: 0 };
+  if (isPointing(lm)) return { gesture: 'point',  fingerTip: lm[8], angle: Math.atan2(lm[8].y - lm[5].y, lm[8].x - lm[5].x) };
+  if (isOpenPalm(lm)) return { gesture: 'palm',   fingerTip: lm[12], angle: 0 };
+  return { gesture: 'other', fingerTip: lm[8], angle: 0 };
+}
+
+// ===== 21 关键点分色可视化(手部关节部位精准追踪)=====
+// 每根手指独立颜色 + 骨架连线,与脸部关键点层共用同一 canvas-2d
+const HAND_PART = {
+  wrist:  { color: '#ffffff', idx: [0] },
+  thumb:  { color: '#ff4d6d', idx: [1,2,3,4] },
+  index:  { color: '#ffd700', idx: [5,6,7,8] },
+  middle: { color: '#3dd68c', idx: [9,10,11,12] },
+  ring:   { color: '#3dd6ff', idx: [13,14,15,16] },
+  pinky:  { color: '#c77dff', idx: [17,18,19,20] },
+};
+// 骨架连线(每根手指从 MCP→PIP→DIP→TIP + 腕到拇指根 + 掌骨连线)
+const HAND_BONES = [
+  [0,1],[1,2],[2,3],[3,4],          // 拇指
+  [0,5],[5,6],[6,7],[7,8],          // 食指
+  [0,9],[9,10],[10,11],[11,12],     // 中指
+  [0,13],[13,14],[14,15],[15,16],   // 无名指
+  [0,17],[17,18],[18,19],[19,20],   // 小指
+  [5,9],[9,13],[13,17],             // 掌骨横连
+];
+function drawHand2D(landmarks) {
+  if (!landmarks || landmarks.length < 21) return;
+  const W = canvas2d.width, H = canvas2d.height;
+  if (W === 0 || H === 0) return;
+  // 1) 骨架连线(按所属手指着色)
+  ctx2d.lineWidth = 2.5;
+  ctx2d.lineCap = 'round';
+  for (const [a, b] of HAND_BONES) {
+    // 判断 a 属于哪根手指
+    let partKey = 'wrist';
+    for (const k of Object.keys(HAND_PART)) {
+      if (HAND_PART[k].idx.includes(a)) { partKey = k; break; }
+    }
+    ctx2d.strokeStyle = HAND_PART[partKey].color;
+    ctx2d.beginPath();
+    ctx2d.moveTo(landmarks[a].x * W, landmarks[a].y * H);
+    ctx2d.lineTo(landmarks[b].x * W, landmarks[b].y * H);
+    ctx2d.stroke();
+  }
+  // 2) 关键点(按部位分色,关节 3px,指尖 5px 高亮)
+  for (let i = 0; i < 21; i++) {
+    const p = landmarks[i];
+    let partKey = 'wrist';
+    for (const k of Object.keys(HAND_PART)) {
+      if (HAND_PART[k].idx.includes(i)) { partKey = k; break; }
+    }
+    ctx2d.fillStyle = HAND_PART[partKey].color;
+    const isTip = [4,8,12,16,20].includes(i);
+    const r = isTip ? 5 : (i === 0 ? 6 : 3);
+    ctx2d.beginPath();
+    ctx2d.arc(p.x * W, p.y * H, r, 0, Math.PI * 2);
+    ctx2d.fill();
+    // 指尖白色描边强调
+    if (isTip) {
+      ctx2d.strokeStyle = '#ffffff';
+      ctx2d.lineWidth = 1.5;
+      ctx2d.stroke();
+    }
+  }
+  // 3) 食指指向时画方向射线(展示"前方动作"的方向)
+  if (isPointing(landmarks)) {
+    const tip = landmarks[8], mcp = landmarks[5];
+    const dx = tip.x - mcp.x, dy = tip.y - mcp.y;
+    const len = Math.hypot(dx, dy);
+    if (len > 1e-4) {
+      const ux = dx / len, uy = dy / len;
+      ctx2d.strokeStyle = 'rgba(255,215,0,0.7)';
+      ctx2d.lineWidth = 3;
+      ctx2d.setLineDash([8, 4]);
+      ctx2d.beginPath();
+      ctx2d.moveTo(tip.x * W, tip.y * H);
+      ctx2d.lineTo((tip.x + ux * 0.3) * W, (tip.y + uy * 0.3) * H);
+      ctx2d.stroke();
+      ctx2d.setLineDash([]);
+      // 箭头
+      const ex = (tip.x + ux * 0.3) * W, ey = (tip.y + uy * 0.3) * H;
+      ctx2d.fillStyle = 'rgba(255,215,0,0.9)';
+      ctx2d.beginPath();
+      ctx2d.moveTo(ex, ey);
+      ctx2d.lineTo(ex - ux * 14 - uy * 7, ey - uy * 14 + ux * 7);
+      ctx2d.lineTo(ex - ux * 14 + uy * 7, ey - uy * 14 - ux * 7);
+      ctx2d.closePath();
+      ctx2d.fill();
+    }
+  }
+}
+
+// ===== 追踪主循环(§3.1 数据流 + §3.2 坐标系转换)=====
+const tmpMatrix = new THREE.Matrix4();
+const tmpPos = new THREE.Vector3();
+const tmpQuat = new THREE.Quaternion();
+const tmpScale = new THREE.Vector3();
+const prevPos = new THREE.Vector3(); // 上一帧位置,用于速度预测
+let prevPosValid = false; // 首次检测时跳过预测(prevPos 初始为 0,0,0 会造成跳变)
+let lastDetected = false;
+// 检测诊断计数器:连续未检测到人脸时,在 HUD 给出可操作提示
+let noFaceFrames = 0;
+let lastDiagTime = 0;
+// 手部 landmarks 持久化:手部隔帧检测,但每帧都要重画(否则被脸部 clearRect 清掉 → 闪烁)
+let lastHandLandmarks = null;
+// 上次强制检测时间:当 video.currentTime 停滞(GPU 高负载导致视频解码卡帧)时,
+// 用时间间隔兜底,每 80ms 强制检测一次,避免关键点"定格"
+let lastDetectTime = 0;
+// 平滑系数 = 1.0:直接赋值,完全无插值延迟,面具实时贴合脸部。
+// (0.4/0.85 会造成"慢慢追"的跟随感;1.0 可能在高速移动时有轻微抖动,
+//  但这是消除跟随感的必要代价。如需防抖可降到 0.95。)
+let smoothFactor = 1.0;
+let partSmooth = 1.0; // 部位级(纵目/嘴)对齐,同样直接赋值无延迟
+
+// ===== 468 关键点部位分色索引(MediaPipe FaceLandmarker 标准拓扑)=====
+// 每个部位用独立颜色精准标注,让"脸部各部位点追踪"肉眼可见
+const PART = {
+  faceOval: { color: '#3dd6ff', idx: [10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109] },
+  leftEye:  { color: '#ff4d6d', idx: [33,7,163,144,145,153,154,155,133,173,157,158,159,160,161,246] },
+  rightEye: { color: '#ff4d6d', idx: [263,249,390,373,374,380,381,382,362,398,384,385,386,387,388,466] },
+  leftBrow: { color: '#ffd700', idx: [70,63,105,66,107,55,65,52,53,46] },
+  rightBrow:{ color: '#ffd700', idx: [336,296,334,293,300,285,295,282,283,276] },
+  nose:     { color: '#3dd68c', idx: [168,6,197,195,5,4,1,19,94,2] },
+  noseTip:  { color: '#ffffff', idx: [1,2,98,327,168] },
+  lipsOuter:{ color: '#ff8a3d', idx: [61,146,91,181,84,17,314,405,321,375,291,409,270,269,267,0,37,39,40,185] },
+  lipsInner:{ color: '#ff5e3a', idx: [78,95,88,178,87,14,317,402,318,324,308,415,310,311,312,13,82,81,80,191] },
+  leftIris: { color: '#00e5ff', idx: [468,469,470,471,472] },   // 473-477 为右虹膜(需 refineLandmarks)
+  rightIris:{ color: '#00e5ff', idx: [473,474,475,476,477] },
+};
+// 构建索引→部位查找表(关键点数精准分色,每点 1.5px)
+const lmPartMap = new Map();
+for (const key of Object.keys(PART)) {
+  for (const i of PART[key].idx) lmPartMap.set(i, key);
+}
+
+// 部位中心计算:用于 HUD 实时显示各部位是否被精准追踪
+function partCenter(landmarks, idxArr) {
+  let x = 0, y = 0, n = 0;
+  for (const i of idxArr) {
+    if (i < landmarks.length) { x += landmarks[i].x; y += landmarks[i].y; n++; }
+  }
+  return n > 0 ? { x: x / n, y: y / n, n } : null;
+}
+
+// 2D canvas 尺寸同步(每帧检查,resize 后自适应)
+function sync2dCanvas() {
+  const w = video.videoWidth || window.innerWidth;
+  const h = video.videoHeight || window.innerHeight;
+  if (canvas2d.width !== w || canvas2d.height !== h) {
+    canvas2d.width = w; canvas2d.height = h;
+  }
+}
+
+// ===== 关键点分色绘制 + 部位中心标注 + 可选三角网格 =====
+let lastLandmarks = null;
+function drawLandmarks2D(landmarks) {
+  lastLandmarks = landmarks;
+  sync2dCanvas();
+  ctx2d.clearRect(0, 0, canvas2d.width, canvas2d.height);
+  if (!landmarks || landmarks.length === 0) return;
+  const W = canvas2d.width, H = canvas2d.height;
+
+  // 1) 可选三角网格(简化的 face mesh 连线,用 tesselation 的少量代表性三角边)
+  if (toggleMesh.checked) {
+    ctx2d.strokeStyle = 'rgba(125,160,255,0.25)';
+    ctx2d.lineWidth = 0.5;
+    ctx2d.beginPath();
+    // 鼻梁到脸轮廓的几条连线作为网格示意
+    const meshEdges = [
+      [1,33],[1,263],[1,152],[1,10],[1,234],[1,454],
+      [33,133],[133,33],[263,362],[362,263],
+      [33,61],[263,291],[61,291],[61,152],[291,152],
+      [70,63],[63,105],[105,66],[66,107],
+      [336,296],[296,334],[334,293],[293,300],
+      [10,152],[152,377],[377,400],[400,152],
+      [234,33],[454,263],[127,162],[162,21],[21,162],
+    ];
+    for (const [a, b] of meshEdges) {
+      if (a < landmarks.length && b < landmarks.length) {
+        ctx2d.moveTo(landmarks[a].x * W, landmarks[a].y * H);
+        ctx2d.lineTo(landmarks[b].x * W, landmarks[b].y * H);
+      }
+    }
+    ctx2d.stroke();
+  }
+
+  if (!toggleLm.checked) return;
+
+  // 2) 按部位分色绘制每个关键点(精准到点)
+  for (let i = 0; i < landmarks.length; i++) {
+    const p = landmarks[i];
+    const partKey = lmPartMap.get(i);
+    const color = partKey ? PART[partKey].color : 'rgba(200,200,220,0.5)';
+    ctx2d.fillStyle = color;
+    // 部位点稍大,普通点 1.2px,部位点 1.8px
+    const r = partKey ? 1.8 : 1.0;
+    ctx2d.beginPath();
+    ctx2d.arc(p.x * W, p.y * H, r, 0, Math.PI * 2);
+    ctx2d.fill();
+  }
+
+  // 3) 部位中心标注(眼睛/鼻/嘴/眉中心画大圈+十字,直观展示"部位级精准追踪")
+  const centers = [
+    { key: 'leftEye', label: 'L眼' },
+    { key: 'rightEye', label: 'R眼' },
+    { key: 'leftBrow', label: 'L眉' },
+    { key: 'rightBrow', label: 'R眉' },
+    { key: 'nose', label: '鼻' },
+    { key: 'lipsOuter', label: '嘴' },
+  ];
+  ctx2d.lineWidth = 1.5;
+  for (const c of centers) {
+    const ctr = partCenter(landmarks, PART[c.key].idx);
+    if (!ctr) continue;
+    const cx = ctr.x * W, cy = ctr.y * H;
+    ctx2d.strokeStyle = PART[c.key].color;
+    ctx2d.beginPath();
+    ctx2d.arc(cx, cy, 8, 0, Math.PI * 2);
+    ctx2d.stroke();
+    // 十字准星
+    ctx2d.beginPath();
+    ctx2d.moveTo(cx - 12, cy); ctx2d.lineTo(cx - 4, cy);
+    ctx2d.moveTo(cx + 4, cy); ctx2d.lineTo(cx + 12, cy);
+    ctx2d.moveTo(cx, cy - 12); ctx2d.lineTo(cx, cy - 4);
+    ctx2d.moveTo(cx, cy + 4); ctx2d.lineTo(cx, cy + 12);
+    ctx2d.stroke();
+    // 标签(反向镜像使文字正向可读)
+    ctx2d.save();
+    ctx2d.scale(-1, 1);
+    ctx2d.fillStyle = PART[c.key].color;
+    ctx2d.font = '11px Consolas, monospace';
+    ctx2d.fillText(c.label, -cx + 10, cy - 10);
+    ctx2d.restore();
+  }
+}
+
+// ===== 部位级追踪状态更新(展示每个部位是否被精准识别)=====
+function updatePartStatus(landmarks) {
+  if (!landmarks || landmarks.length === 0) {
+    st.lm.textContent = '0';
+    st.eyes.textContent = '—/—';
+    st.parts.textContent = '—';
+    return;
+  }
+  st.lm.textContent = landmarks.length;
+
+  // 左右眼 EAR(分别计算,展示双眼独立追踪)
+  const earL = computeEAR(landmarks); // 用左眼
+  // 右眼 EAR:关键点 386-374 垂直 / 263-362 水平
+  let earR = 0;
+  if (landmarks.length > 466) {
+    const p263 = landmarks[263], p362 = landmarks[362];
+    const p386 = landmarks[386], p374 = landmarks[374];
+    const dx = Math.hypot(p263.x - p362.x, p263.y - p362.y);
+    const dy = Math.hypot(p386.x - p374.x, p386.y - p374.y);
+    earR = dx > 1e-6 ? dy / dx : 0;
+  }
+  st.eyes.textContent = `${earL.toFixed(2)}/${earR.toFixed(2)}`;
+
+  // 部位中心完整性(每个部位的关键点是否齐全)
+  const parts = ['leftEye', 'rightEye', 'leftBrow', 'rightBrow', 'nose', 'lipsOuter'];
+  const ok = parts.filter(k => partCenter(landmarks, PART[k].idx) && partCenter(landmarks, PART[k].idx).n === PART[k].idx.length).length;
+  st.parts.textContent = `${ok}/${parts.length} 部位完整`;
+}
+
+function trackLoop() {
+  if (!faceLandmarker || !three) { requestAnimationFrame(trackLoop); return; }
+
+  // 整个循环体用 try-catch 包裹:任何未捕获异常都不能中断 RAF 链(否则页面冻结)
+  try {
+    _trackLoopBody();
+  } catch (e) {
+    console.error('[TrackLoop] uncaught error (non-fatal):', e);
+  }
+  requestAnimationFrame(trackLoop);
+}
+
+function _trackLoopBody() {
+  const now = performance.now();
+  // 旧逻辑用 video.currentTime 判断新帧,但部分浏览器/摄像头场景下 currentTime
+  // 可能不更新(一直为 0),导致检测块永远进不去 → "检测不到脸/手"。
+  // 新逻辑:只要 video 有有效帧(readyState>=2)就检测,用时间戳去重避免同帧重复检测。
+  // 额外兜底:当 GPU 高负载(神力激活)导致视频解码卡帧、currentTime 停滞时,
+  // 每 80ms 强制检测一次,避免关键点"定格"。
+  const videoReady = video.readyState >= 2 && video.videoWidth > 0;
+  const newFrame = video.currentTime !== lastVideoTime;
+  const staleDetect = (now - lastDetectTime) > 80; // 时间间隔兜底
+  if (!videoReady) {
+    // 视频流未就绪,在 HUD 提示(避免用户看到"初始化"不知所措)
+    if (now - lastDiagTime > 1000) {
+      lastDiagTime = now;
+      st.face.textContent = '视频流未就绪';
+      console.log('[Track] video not ready: readyState=', video.readyState, 'videoW=', video.videoWidth);
+    }
+  } else if (newFrame || lastVideoTime === 0 || staleDetect) {
+    lastVideoTime = video.currentTime;
+    lastDetectTime = now;
+    let result = null;
+    try {
+      result = faceLandmarker.detectForVideo(video, now);
+    } catch (e) {
+      // 兜底:检测异常不中断循环
+      st.face.textContent = '检测异常';
+      console.warn('[Face] detect error:', e);
+    }
+
+    if (result && result.facialTransformationMatrixes && result.facialTransformationMatrixes.length > 0) {
+      const matrixData = result.facialTransformationMatrixes[0].data;
+      st.face.textContent = '已检测';
+      st.mat.textContent = `有(${matrixData.length})`;
+      st.face.parentElement.classList.remove('err');
+      lastDetected = true;
+      noFaceFrames = 0; // 重置未检测计数
+
+      // 坐标系转换(§3.2):镜像翻转 x 分量
+      tmpMatrix.fromArray(matrixData);
+      tmpMatrix.elements[0] *= -1;
+      tmpMatrix.elements[4] *= -1;
+      tmpMatrix.elements[8] *= -1;
+      tmpMatrix.elements[12] *= -1;
+
+      tmpPos.setFromMatrixPosition(tmpMatrix);
+      tmpQuat.setFromRotationMatrix(tmpMatrix);
+
+      // 速度预测补偿:detectForVideo 有 8-12ms 推理延迟,
+      // 用上一帧→当前帧的位移差预测下一帧位置,让面具"领先"检测结果,消除跟随感。
+      // predictionFactor=0.6 表示预测 0.6 帧(过大会过冲,过小仍有跟随感,0.6 为平衡值)
+      if (prevPosValid) {
+        const vx = tmpPos.x - prevPos.x;
+        const vy = tmpPos.y - prevPos.y;
+        const vz = tmpPos.z - prevPos.z;
+        tmpPos.x += vx * 0.6;
+        tmpPos.y += vy * 0.6;
+        tmpPos.z += vz * 0.6;
+      }
+      prevPos.copy(tmpPos);
+      prevPosValid = true;
+
+      // smoothFactor=1.0:直接赋值,无插值延迟(配合上面的速度预测)
+      three.maskGroup.position.lerp(tmpPos, smoothFactor);
+      three.maskGroup.quaternion.slerp(tmpQuat, smoothFactor);
+
+      // 缩放:优先用关键点包围盒估算(更稳),fallback 矩阵 z(§3.2 待校准项兜底)
+      const lms = result.faceLandmarks && result.faceLandmarks[0];
+      let scale = 1.0;
+      if (lms && lms.length > 0) {
+        let minX=1, maxX=0, minY=1, maxY=0;
+        for (const p of lms) {
+          if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+          if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+        }
+        const boxW = maxX - minX; // 归一化宽度
+        scale = Math.max(0.3, Math.min(3, boxW * 6.0));
+        // 保存脸部包围盒供变脸划过检测用(各方向外扩 0.1,让手腕在脸边缘也算"划过")
+        lastFaceBox = {
+          minX: Math.max(0, minX - 0.1), maxX: Math.min(1, maxX + 0.1),
+          minY: Math.max(0, minY - 0.1), maxY: Math.min(1, maxY + 0.1),
+        };
+      } else {
+        scale = Math.max(0.3, Math.min(3, Math.abs(matrixData[14]) * 8));
+      }
+      three.maskGroup.scale.lerp(tmpScale.setScalar(scale), smoothFactor);
+
+      // ===== 部位级精准对齐:纵目/嘴部装饰跟随关键点部位中心微调 =====
+      // 用归一化坐标差(相对脸部包围盒中心)驱动子部件局部位置,实现"点级"贴合
+      if (lms && lms.length > 466) {
+        // 脸部包围盒中心作为基准
+        let cx = 0, cy = 0, n = 0;
+        for (const pi of PART.faceOval.idx) { if (pi < lms.length) { cx += lms[pi].x; cy += lms[pi].y; n++; } }
+        if (n > 0) { cx /= n; cy /= n; }
+        const boxW = (() => { let mx=1,Mx=0; for (const pi of PART.faceOval.idx){ if(pi<lms.length){if(lms[pi].x<mx)mx=lms[pi].x;if(lms[pi].x>Mx)Mx=lms[pi].x;}} return Math.max(1e-4, Mx-mx); })();
+        // 左眼中心 → 左纵目局部位置(归一化差 × 缩放系数)
+        const le = partCenter(lms, PART.leftEye.idx);
+        if (le) {
+          const dx = (le.x - cx) / boxW; // 相对脸宽的偏移
+          const dy = (le.y - cy) / boxW;
+          // 面具局部坐标系下,左眼基准位置 (-0.32, 0.25),用关键点偏移微调
+          three.leftEye.position.x = THREE.MathUtils.lerp(three.leftEye.position.x, -0.32 + dx * 0.8, partSmooth);
+          three.leftEye.position.y = THREE.MathUtils.lerp(three.leftEye.position.y, 0.25 - dy * 0.8, partSmooth);
+        }
+        const re = partCenter(lms, PART.rightEye.idx);
+        if (re) {
+          const dx = (re.x - cx) / boxW;
+          const dy = (re.y - cy) / boxW;
+          three.rightEye.position.x = THREE.MathUtils.lerp(three.rightEye.position.x, 0.32 + dx * 0.8, partSmooth);
+          three.rightEye.position.y = THREE.MathUtils.lerp(three.rightEye.position.y, 0.25 - dy * 0.8, partSmooth);
+        }
+        // 嘴唇中心 → 嘴部装饰条位置
+        const mc = partCenter(lms, PART.lipsOuter.idx);
+        if (mc) {
+          const dx = (mc.x - cx) / boxW;
+          const dy = (mc.y - cy) / boxW;
+          three.mouth.position.x = THREE.MathUtils.lerp(three.mouth.position.x, dx * 0.6, partSmooth);
+          three.mouth.position.y = THREE.MathUtils.lerp(three.mouth.position.y, -0.45 - dy * 0.8, partSmooth);
+          // 嘴部张合 → 装饰条长度变化(精准联动)
+          const mouthH = (() => {
+            const p13 = lms[13], p14 = lms[14];
+            return Math.hypot(p13.x - p14.x, p13.y - p14.y) / boxW;
+          })();
+          three.mouth.scale.y = THREE.MathUtils.lerp(three.mouth.scale.y, 1 + mouthH * 6, partSmooth);
+        }
+      }
+
+      // ===== 认主状态机推进 =====
+      const ear = computeEAR(lms);
+      const pitch = computePitch(matrixData);
+      st.ear.textContent = ear.toFixed(3);
+      st.pitch.textContent = pitch.toFixed(1) + '°';
+
+      if (ritualPhase === 'scan') {
+        // 扫描态:检测到人脸稳定片刻后进入验证态
+        if (!scanEnterTimer) scanEnterTimer = now;
+        if (now - scanEnterTimer > 800) {
+          scanEnterTimer = 0;
+          setRitualPhase('verify');
+          verifyStableStart = 0;
+        }
+      } else if (ritualPhase === 'verify') {
+        // 验证态:睁眼 EAR>0.2 且 抬头 pitch>12° 持续 1.5s(pitch>5° 太松,平视即过)
+        const ok = ear > 0.2 && pitch > 12;
+        if (ok) {
+          if (!verifyStableStart) verifyStableStart = now;
+          const held = now - verifyStableStart;
+          ritualBar.style.width = Math.min(100, (held / VERIFY_STABLE_MS) * 100) + '%';
+          if (held >= VERIFY_STABLE_MS) setRitualPhase('claim');
+        } else {
+          verifyStableStart = 0;
+          ritualBar.style.width = '0%';
+        }
+      }
+
+      // 表情联动(认主完成后)
+      applyExpression(result.faceBlendshapes && result.faceBlendshapes[0]);
+
+      // 关键点分色可视化 + 部位级追踪状态(脸部各部位点精准追踪)
+      drawLandmarks2D(lms);
+      updatePartStatus(lms);
+    } else if (result) {
+      st.face.textContent = '未检测';
+      st.face.parentElement.classList.add('err');
+      lastDetected = false;
+      scanEnterTimer = 0;
+      noFaceFrames++;
+      // 每 2 秒输出一次诊断提示,帮助用户排查
+      if (now - lastDiagTime > 2000) {
+        lastDiagTime = now;
+        if (noFaceFrames < 30) {
+          st.face.textContent = '搜索中…';
+        } else {
+          st.face.textContent = '未检测(请正对镜头/补光/靠近)';
+        }
+        console.log('[Face] no-face frames=', noFaceFrames,
+                    'readyState=', video.readyState,
+                    'videoW=', video.videoWidth, 'currentTime=', video.currentTime);
+      }
+      // 未检测到人脸时清空关键点层
+      ctx2d.clearRect(0, 0, canvas2d.width, canvas2d.height);
+      updatePartStatus(null);
+    }
+
+    // ===== 手势检测(§7 拓展):与人脸共用同一视频帧,始终运行 =====
+    // 隔帧检测降低双模型开销(30fps 下手势仍 15Hz,足够hold检测)
+    // 用独立时间戳(performance.now() 重新取),与人脸 GPU 检测的时间戳序列分离,
+    // 避免 MediaPipe 内部同时间戳调用产生的潜在干扰
+    // 手势检测始终运行(HUD 实时显示),神力特效仅在认主后触发
+    handFrameToggle = !handFrameToggle;
+    if (handLandmarker && handFrameToggle) {
+      let handResult = null;
+      try { handResult = handLandmarker.detectForVideo(video, performance.now()); }
+      catch (e) { st.hand.textContent = '检测异常'; }
+      if (handResult && handResult.landmarks && handResult.landmarks.length > 0) {
+        const lm = handResult.landmarks[0];
+        st.hand.textContent = '已检测';
+        lastHandLandmarks = lm; // 持久化,供每帧重画
+        // 多手势识别
+        const g = classifyGesture(lm);
+        const gestureName = { palm:'张开手掌', fist:'握拳', point:'指向', pinch:'捏合', other:'其他', none:'—' }[g.gesture];
+        st.gesture.textContent = gestureName;
+        // 指尖位置(归一化坐标,展示"基础定位")
+        if (g.fingerTip) {
+          st.fingertip.textContent = `(${g.fingerTip.x.toFixed(2)}, ${g.fingerTip.y.toFixed(2)})`;
+        }
+
+        // ===== 手势→动作映射(认主完成后才生效)=====
+        // 仅 pinch/point 有实际视觉效果;palm/fist 识别后只显示手势名,不映射动作
+        if (ritualPhase === 'done') {
+          // 变脸检测优先(独立于手势分类):手横向划过脸部即触发,避免与其他手势冲突
+          let swipeTriggered = false;
+          if (lastFaceBox) {
+            const swipeDir = detectSwipeOverFace(lm, lastFaceBox, now);
+            if (swipeDir && now - maskChangeCooldown > MASK_CHANGE_COOLDOWN_MS) {
+              triggerMaskChange();
+              maskChangeCooldown = now;
+              swipeTriggered = true;
+              st.action.textContent = '变脸 → ' + MASK_PRESETS[currentMaskIdx].name;
+            }
+          }
+          if (!swipeTriggered) {
+            let action = '待机';
+            if (g.gesture === 'pinch') {
+              // 捏合 → 切换神力色(边沿触发 + 800ms 冷却防连按)
+              action = '切换神力色';
+              if (prevGesture !== 'pinch' && now - pinchCooldown > 800) {
+                cycleAffinityByGesture();
+                pinchCooldown = now;
+              }
+            } else if (g.gesture === 'point') {
+              // 指向 → 定向爆发粒子(指尖方向,500ms 冷却)
+              action = '定向爆发';
+              if (now - pointCooldown > 500) {
+                burstParticlesToward(g.fingerTip, g.angle);
+                pointCooldown = now;
+              }
+            }
+            st.action.textContent = action;
+          }
+          prevGesture = g.gesture;
+        } else {
+          st.action.textContent = '需先认主';
+        }
+      } else if (handResult) {
+        // 检测到帧但无手:手离开镜头,清空持久化
+        st.hand.textContent = '未检测';
+        st.gesture.textContent = '—';
+        st.fingertip.textContent = '—';
+        st.action.textContent = '—';
+        lastHandLandmarks = null; // 手离开,清空持久化
+        prevGesture = 'none';
+        swipeState.prevX = null; // 手离开,重置变脸划过状态机
+      }
+    }
+    // 每帧重画手部关键点(无论本帧是否检测),消除隔帧检测导致的闪烁
+    if (lastHandLandmarks) drawHand2D(lastHandLandmarks);
+  }
+
+  // shader 时间推进
+  three.rustUniforms.uTime.value = now * 0.001;
+  three.scanUniforms.uTime.value = now * 0.001;
+  three.pMat.uniforms.uTime.value = now * 0.001;
+  updateParticles(1 / 60);
+
+  // 渲染(性能不足时降级关闭 bloom,§8.2)
+  // 异常保护:渲染调用可能因 WebGL 上下文丢失抛错,用 try-catch 防止卡死整个循环
+  try {
+    if (bloomEnabled) three.composer.render();
+    else three.renderer.render(three.scene, three.camera);
+  } catch (renderErr) {
+    // WebGL 上下文丢失或显存不足:立即降级(关 bloom + 减粒子)并继续循环
+    console.error('[Render] error, degrading:', renderErr);
+    bloomEnabled = false;
+    st.bloom.textContent = '已降级(渲染错误)';
+    st.bloom.parentElement.classList.add('warn');
+    three.particles.visible = false;
+    burstActive = false;
+  }
+
+  // FPS 监控 + 自动 bloom 降级
+  frameCount++;
+  if (now - fpsStart >= 1000) {
+    const fps = frameCount;
+    st.fps.textContent = fps;
+    frameCount = 0; fpsStart = now;
+    if (bloomEnabled && fps < 25) {
+      bloomEnabled = false;
+      st.bloom.textContent = '已降级(性能)';
+      st.bloom.parentElement.classList.add('warn');
+    }
+  }
+}
+let scanEnterTimer = 0;
+
+// ===== 兜底:跳过认主直接进认主态(§8.2)=====
+skipBtn.addEventListener('click', () => {
+  if (ritualPhase === 'claim' || ritualPhase === 'done') return;
+  // 恢复面具实体显示再触发苏醒
+  gsap.to(three.faceMat, { opacity: 1.0, duration: 0.3 });
+  three.scanUniforms.uActive.value = 0;
+  setRitualPhase('claim');
+});
+
+// ===== 启动 =====
+startBtn.addEventListener('click', async () => {
+  startBtn.disabled = true;
+  startBtn.textContent = '加载视觉模型中...';
+  try {
+    await initFaceLandmarker();
+    startBtn.textContent = '加载手势模型中...';
+    // 手势模型加载失败不阻塞主流程(人脸追踪仍可用,§8.2 兜底思想)
+    try { await initHandLandmarker(); }
+    catch (e) { st.hand.textContent = '模型加载失败'; console.warn('HandLandmarker init failed:', e); }
+    startBtn.textContent = '启动摄像头中...';
+    await startCamera();
+    three = initThree();
+    applyMaskPreset(0); // 初始化面具为青铜纵目(默认第 0 个预设)
+    
+    // 预加载固定 GLB 模型(异步，不阻塞主流程)
+    preloadFixedGLBModels().catch(e => {
+      console.warn('[GLB] 预加载失败:', e);
+    });
+    
+    hud.style.display = 'block';
+    affinityBox.style.display = 'block';
+    ritualBox.style.display = 'block';
+    startBtn.style.display = 'none';
+    st.state.textContent = '追踪中';
+    setRitualPhase('scan');
+    trackLoop();
+    // ar.html:从 URL 参数自动加载考古体验页生成的 GLB 面具
+    autoLoadMaskFromUrl();
+  } catch (e) {
+    st.state.textContent = '错误: ' + e.message;
+    st.state.style.color = '#ef4444';
+    startBtn.disabled = false;
+    startBtn.textContent = '重试';
+    console.error(e);
+  }
+});
+
+// ===== AI 面具生成(文字 → 混元生图三视图 → 混元3D 图生3D → GLB 戴脸上)=====
+let customMaskLoaded = false; // 是否已加载自定义 GLB 面具
+
+function setGenStatus(text, type = 'info') {
+  genStatus.textContent = text;
+  genStatus.className = type === 'err' ? 'status-err' : type === 'ok' ? 'status-ok' : '';
+}
+function setGenBar(pct) {
+  genBar.style.width = Math.max(0, Math.min(100, pct)) + '%';
+}
+function setGenActive(active) {
+  genProgress.classList.toggle('active', active);
+  genBtn.disabled = active;
+}
+
+// 把 GLB scene 挂到 maskGroup,替换程序化面具
+// 1. 隐藏 maskGroup 现有 children(face/rust/eyes/ears/mouth/rune/scan)
+// 2. 计算 GLB bbox,缩放到 size≈1.2(匹配现有面具视觉大小),居中
+// 3. 加到 maskGroup,自动跟随脸部 transform
+function attachCustomMask(glbScene) {
+  // 隐藏现有程序化面具部件
+  for (const child of three.maskGroup.children) {
+    if (child.visible !== undefined) child.visible = false;
+  }
+
+  // 计算 bbox
+  const box = new THREE.Box3().setFromObject(glbScene);
+  const size = new THREE.Vector3();
+  const center = new THREE.Vector3();
+  box.getSize(size);
+  box.getCenter(center);
+
+  // 归一化:最大边缩放到 1.2,居中到原点
+  const maxDim = Math.max(size.x, size.y, size.z, 0.001);
+  const scale = 1.2 / maxDim;
+  glbScene.scale.setScalar(scale);
+  // 居中:缩放后再减去中心
+  glbScene.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
+
+  // GLB 默认朝向可能不对,大多数生成器输出 +Y 朝上、-Z 朝前
+  // 面具需要 +Z 朝前(对着镜头),这里旋转使其正面朝前
+  glbScene.rotation.y = Math.PI; // 绕 Y 转 180°,让正面朝向镜头(根据实际效果调)
+
+  three.maskGroup.add(glbScene);
+  customMaskLoaded = true;
+  st.render.textContent = '自定义面具(GLB)';
+  console.log('[GenMask] 自定义面具已加载,scale=', scale, 'size=', size);
+}
+
+// 把 AI 生成的 GLB 加入切换列表(不替换程序化面具,而是作为可切换选项)
+function attachAIModelToSwitchList(glbScene, modelName = 'AI 生成面具') {
+  // 计算 bbox
+  const box = new THREE.Box3().setFromObject(glbScene);
+  const size = new THREE.Vector3();
+  const center = new THREE.Vector3();
+  box.getSize(size);
+  box.getCenter(center);
+
+  // 归一化:最大边缩放到 1.2,居中到原点
+  const maxDim = Math.max(size.x, size.y, size.z, 0.001);
+  const scale = 1.2 / maxDim;
+  glbScene.scale.setScalar(scale);
+  glbScene.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
+
+  // 调整朝向:让面具正面面向摄像头
+  glbScene.rotation.y = Math.PI;
+
+  // 初始隐藏
+  glbScene.visible = false;
+
+  // 添加到 maskGroup
+  three.maskGroup.add(glbScene);
+
+  // 添加到切换列表
+  GLB_MODELS.push({ name: modelName, path: 'ai-generated', type: 'ai' });
+  loadedGLBModels.push(glbScene);
+
+  console.log(`[GenMask] AI 模型已添加到切换列表: ${modelName}, 当前共 ${loadedGLBModels.length} 个模型`);
+}
+
+genBtn.addEventListener('click', async () => {
+  const prompt = genPrompt.value.trim();
+  if (!prompt) {
+    setGenStatus('请输入面具描述', 'err');
+    return;
+  }
+
+  setGenActive(true);
+  genPreview.classList.remove('active');
+  setGenBar(5);
+  setGenStatus('步骤1/2:seedream 生成三视角图(左/右/后,约30-60秒)...');
+
+  try {
+    // 一站式接口:文字 → seedream 三视角生图 → 混元3D 多视角融合生 3D → GLB
+    let progress = 10;
+    const progressTimer = setInterval(() => {
+      progress = Math.min(progress + 1, 75);
+      setGenBar(progress);
+      if (progress < 30) setGenStatus('seedream 正在生成三视角图...');
+      else if (progress < 60) setGenStatus('混元3D 正在多视角融合生成 3D 模型(约2-4分钟)...');
+      else setGenStatus('等待混元3D 完成...');
+    }, 2000);
+
+    const resp = await fetch('/api/generate-mask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt }),
+    });
+    const data = await resp.json();
+    clearInterval(progressTimer);
+
+    if (!resp.ok) throw new Error(data.error || '生成失败');
+
+    // 显示四视角预览图
+    if (data.views && data.views.length > 0) {
+      data.views.forEach(v => {
+        if (v.view === 'front') genViewFront.src = v.url;
+        else if (v.view === 'left') genViewLeft.src = v.url;
+        else if (v.view === 'right') genViewRight.src = v.url;
+        else if (v.view === 'back') genViewBack.src = v.url;
+      });
+      genPreview.classList.add('active');
+    }
+
+    setGenBar(85);
+    setGenStatus('3D 模型已生成(多视角融合),正在加载到脸上...');
+
+    // GLTFLoader 加载 GLB
+    const glb = await new Promise((resolve, reject) => {
+      gltfLoader.load(
+        data.glbUrl,
+        (gltf) => resolve(gltf),
+        (progress) => {
+          if (progress.total > 0) {
+            const pct = 85 + (progress.loaded / progress.total) * 15;
+            setGenBar(pct);
+          }
+        },
+        (err) => reject(new Error('GLB 加载失败: ' + (err.message || err)))
+      );
+    });
+
+    // 挂到 maskGroup 跟随脸部
+    if (!three) throw new Error('3D 系统未初始化,请先启动 AR');
+
+    // 将 AI 生成的模型加入切换列表(而不是直接替换)
+    attachAIModelToSwitchList(glb.scene, prompt.slice(0, 20));
+
+    setGenBar(100);
+    setGenStatus('AI 面具已加入切换列表!挥手划过脸部可切换', 'ok');
+    setGenActive(false);
+    setGenBar(0);
+  } catch (e) {
+    console.error('[GenMask] 错误:', e);
+    setGenStatus('失败: ' + e.message, 'err');
+    setGenActive(false);
+    setGenBar(0);
+  }
+});
+
+// 回车也能触发生成
+genPrompt.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !genBtn.disabled) genBtn.click();
+});
+
+// ============================================================
+// ar.html 专有:从 URL 参数自动加载考古体验页生成的 GLB 面具
+// 用法:ar.html?mask=<encodeURIComponent(glbUrl)>
+// 若未传 mask 参数,显示提示并保留程序化默认面具
+// ============================================================
+const maskLoaderEl = document.getElementById('mask-loader');
+
+function setMaskLoader(text, type) {
+  if (!maskLoaderEl) return;
+  maskLoaderEl.textContent = text;
+  maskLoaderEl.className = type || '';
+  maskLoaderEl.style.display = 'block';
+}
+function hideMaskLoader() {
+  if (maskLoaderEl) maskLoaderEl.style.display = 'none';
+}
+
+async function autoLoadMaskFromUrl() {
+  const params = new URLSearchParams(location.search);
+  const maskUrl = params.get('mask');
+  if (!maskUrl) {
+    setMaskLoader('未指定面具参数(?mask=<url>),使用默认青铜纵目面具。可从考古体验页生成后跳转至此。', 'err');
+    // 5 秒后自动隐藏
+    setTimeout(hideMaskLoader, 6000);
+    return;
+  }
+  try {
+    setMaskLoader('正在加载考古修复的面具 GLB 模型...');
+    if (!three) throw new Error('3D 系统未初始化');
+    if (!gltfLoader) throw new Error('GLTFLoader 未就绪');
+
+    const glb = await new Promise((resolve, reject) => {
+      gltfLoader.load(
+        maskUrl,
+        (gltf) => resolve(gltf),
+        (progress) => {
+          if (progress.total > 0) {
+            const pct = Math.round((progress.loaded / progress.total) * 100);
+            setMaskLoader(`正在加载面具 GLB 模型... ${pct}%`);
+          }
+        },
+        (err) => reject(new Error('GLB 加载失败: ' + (err.message || err)))
+      );
+    });
+
+    attachCustomMask(glb.scene);
+    setMaskLoader('考古修复的面具已戴上,转头测试跟随效果', 'ok');
+    setTimeout(hideMaskLoader, 4000);
+  } catch (e) {
+    console.error('[ar.html] 自动加载面具失败:', e);
+    setMaskLoader('面具加载失败: ' + e.message, 'err');
+  }
+}
+</script>
+</body>
+</html>

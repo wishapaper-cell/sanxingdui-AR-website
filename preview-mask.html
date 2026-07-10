@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>三星堆面具 3D 预览</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+    color: #c8a96e;
+    font-family: -apple-system, "Microsoft YaHei", sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px;
+  }
+  h1 {
+    font-size: 28px;
+    text-shadow: 0 0 20px rgba(200, 169, 110, 0.5);
+    margin-bottom: 8px;
+  }
+  .sub { color: #888; font-size: 14px; margin-bottom: 20px; }
+  #info { color: #aaa; font-size: 13px; margin-bottom: 12px; min-height: 18px; }
+  #info.err { color: #ff6b6b; }
+  canvas {
+    background: rgba(200, 169, 110, 0.04);
+    border: 1px solid rgba(200, 169, 110, 0.2);
+    border-radius: 8px;
+    max-width: 100%;
+  }
+  .controls {
+    margin-top: 16px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  button {
+    background: rgba(200, 169, 110, 0.15);
+    color: #c8a96e;
+    border: 1px solid rgba(200, 169, 110, 0.4);
+    padding: 8px 18px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  button:hover { background: rgba(200, 169, 110, 0.25); }
+</style>
+</head>
+<body>
+  <h1>三星堆 AI 面具 · 3D 展示</h1>
+  <p class="sub">之前生成的面具模型(自动旋转)</p>
+  <div id="info">正在加载模型...</div>
+  <canvas id="c" width="640" height="640"></canvas>
+  <div class="controls">
+    <button id="toggle">暂停/继续旋转</button>
+    <button id="reset">重置视角</button>
+  </div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+// 之前生成的面具 GLB(通过后端 3001 直接访问)
+const GLB_URL = 'http://127.0.0.1:3001/generated/ar-mask-1783170815532.glb';
+const PREVIEW_URL = 'http://127.0.0.1:3001/generated/ar-mask-1783170815532-preview.png';
+
+const info = document.getElementById('info');
+const canvas = document.getElementById('c');
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(640, 640, false);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x141428);
+
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+camera.position.set(0, 0, 1.2);
+
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 1.5;
+
+// 灯光
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+const dir = new THREE.DirectionalLight(0xffffff, 1.2);
+dir.position.set(2, 2, 3);
+scene.add(dir);
+const dir2 = new THREE.DirectionalLight(0xc8a96e, 0.4);
+dir2.position.set(-2, -1, -2);
+scene.add(dir2);
+
+let model = null;
+
+function normalize(m, target = 0.5) {
+  const box = new THREE.Box3().setFromObject(m);
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z, 0.001);
+  const s = target / maxDim;
+  m.scale.set(s, s, s);
+  m.position.set(-center.x * s, -center.y * s, -center.z * s);
+  m.rotation.set(0, Math.PI, 0); // 正面朝镜头
+}
+
+// 用 fetch + arrayBuffer + loader.parse(绕过签名 URL 编码问题)
+async function loadGlb(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const buf = await res.arrayBuffer();
+  return new Promise((resolve, reject) => {
+    new GLTFLoader().parse(buf, '', (g) => resolve(g.scene), reject);
+  });
+}
+
+loadGlb(GLB_URL).then((m) => {
+  model = m;
+  normalize(m, 0.5);
+  scene.add(m);
+  info.textContent = '模型加载完成(可拖拽旋转,滚轮缩放)';
+  info.classList.remove('err');
+}).catch((e) => {
+  info.textContent = '加载失败: ' + e.message + ' (确认后端 3001 在运行)';
+  info.classList.add('err');
+});
+
+// 预览图作为备用显示
+const img = new Image();
+img.crossOrigin = 'anonymous';
+img.onload = () => {
+  if (!model) {
+    info.textContent = 'GLB 加载失败,显示预览图(确认后端 3001 在运行,且 GLB 文件存在)';
+  }
+};
+img.src = PREVIEW_URL;
+
+function animate() {
+  controls.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+animate();
+
+document.getElementById('toggle').onclick = () => {
+  controls.autoRotate = !controls.autoRotate;
+};
+document.getElementById('reset').onclick = () => {
+  camera.position.set(0, 0, 1.2);
+  controls.target.set(0, 0, 0);
+  controls.update();
+};
+</script>
+</body>
+</html>
