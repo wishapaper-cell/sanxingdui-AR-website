@@ -1,0 +1,658 @@
+{
+  "version": "0.2.2",
+  "updatedAt": "2026-07-04",
+  "purpose": "File-driven mapping database generated from the repository fragments directory, with fragment sets bound to the five identified real artifact images.",
+  "sourceRoot": "fragments",
+  "prototypeMasks": [
+    {
+      "id": "bronze_large_mask",
+      "displayNameCn": "青铜大面具",
+      "realArtifact": true,
+      "artifactType": "bronze_mask",
+      "sourceFragmentSetIds": [
+        "fragment_set_1"
+      ],
+      "academicProfileTodo": {
+        "artifactName": "青铜大面具",
+        "excavationContext": "TODO",
+        "period": "TODO",
+        "collectionOrMuseumSource": "TODO",
+        "shapeDescription": "该人面具体型较大，是目前三星堆祭祀坑出土形制最完整、体量最大、保存最完好的大型青铜面具。其方面，宽额，长刀眉，眉较平，三角形鼻，鼻梁短直，鼻头肥大。长方形竖耳。面部两颊微内收，宽方颐，下颌向前斜伸。整体采用凹凸范铸造而成。",
+        "literatureExplanation": "该人面具体型较大，是目前三星堆祭祀坑出土形制最完整、体量最大、保存最完好的大型青铜面具。其方面，宽额，长刀眉，眉较平，三角形鼻，鼻梁短直，鼻头肥大。长方形竖耳。面部两颊微内收，宽方颐，下颌向前斜伸。整体采用凹凸范铸造而成。",
+        "citations": []
+      }
+    },
+    {
+      "id": "thin_gold_human_face",
+      "displayNameCn": "薄金人面",
+      "realArtifact": true,
+      "artifactType": "gold_face",
+      "sourceFragmentSetIds": [
+        "fragment_set_2"
+      ],
+      "academicProfileTodo": {
+        "artifactName": "薄金人面",
+        "excavationContext": "TODO",
+        "period": "TODO",
+        "collectionOrMuseumSource": "TODO",
+        "shapeDescription": "TODO",
+        "literatureExplanation": "TODO",
+        "citations": []
+      }
+    },
+    {
+      "id": "shang_bronze_human",
+      "displayNameCn": "商青铜人",
+      "realArtifact": true,
+      "artifactType": "bronze_human",
+      "sourceFragmentSetIds": [
+        "fragment_set_3"
+      ],
+      "academicProfileTodo": {
+        "artifactName": "商青铜人",
+        "excavationContext": "TODO",
+        "period": "TODO",
+        "collectionOrMuseumSource": "TODO",
+        "shapeDescription": "人头像头后部有因铸造缺陷而补铸的痕迹。头顶盖与头像分铸，顶盖已脱落无存。脑后发际线较高。脸瘦削，粗眉，立眼，蒜头鼻，阔口，大耳，耳廓外展，耳垂穿孔。颈直，颈下端前后均铸成倒尖角，前短后长，颈两侧各有一圆孔。颈后侧有被砸击的凹痕。",
+        "literatureExplanation": "人头像头后部有因铸造缺陷而补铸的痕迹。头顶盖与头像分铸，顶盖已脱落无存。脑后发际线较高。脸瘦削，粗眉，立眼，蒜头鼻，阔口，大耳，耳廓外展，耳垂穿孔。颈直，颈下端前后均铸成倒尖角，前短后长，颈两侧各有一圆孔。颈后侧有被砸击的凹痕。",
+        "citations": []
+      }
+    },
+    {
+      "id": "large_protruding_eye_beast_mask",
+      "displayNameCn": "大型纵目兽面",
+      "realArtifact": true,
+      "artifactType": "bronze_beast_mask",
+      "sourceFragmentSetIds": [
+        "fragment_set_4"
+      ],
+      "academicProfileTodo": {
+        "artifactName": "大型纵目兽面",
+        "excavationContext": "TODO",
+        "period": "TODO",
+        "collectionOrMuseumSource": "TODO",
+        "shapeDescription": "该兽面体型较大，方颐，倒八字形刀眉，纵目，鹰钩鼻，鼻翼呈旋涡状，阔口，口缝深长，舌尖外露，下颌略向前伸。双兽耳稍向上耸起。在额正中及耳前上、下各有一方形穿孔。",
+        "literatureExplanation": "该兽面体型较大，方颐，倒八字形刀眉，纵目，鹰钩鼻，鼻翼呈旋涡状，阔口，口缝深长，舌尖外露，下颌略向前伸。双兽耳稍向上耸起。在额正中及耳前上、下各有一方形穿孔。",
+        "citations": []
+      }
+    },
+    {
+      "id": "half_covered_gold_face",
+      "displayNameCn": "半覆金面",
+      "realArtifact": true,
+      "artifactType": "gold_covered_face",
+      "sourceFragmentSetIds": [
+        "fragment_set_5"
+      ],
+      "academicProfileTodo": {
+        "artifactName": "半覆金面",
+        "excavationContext": "TODO",
+        "period": "TODO",
+        "collectionOrMuseumSource": "TODO",
+        "shapeDescription": "TODO",
+        "literatureExplanation": "TODO",
+        "citations": []
+      }
+    }
+  ],
+  "fragmentSets": [
+    {
+      "id": "fragment_set_1",
+      "folderName": "1",
+      "sourceFolder": "fragments/1",
+      "completeImage": {
+        "id": "set_1_full",
+        "fileName": "1-full.png",
+        "partKey": "full",
+        "role": "complete_reference_image",
+        "url": "/fragments/1/1-full.png",
+        "localPath": "fragments/1/1-full.png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 574469,
+        "slotLabelCn": "完整参考图",
+        "academicNoteTodo": "该人面具体型较大，是目前三星堆祭祀坑出土形制最完整、体量最大、保存最完好的大型青铜面具。其方面，宽额，长刀眉，眉较平，三角形鼻，鼻梁短直，鼻头肥大。长方形竖耳。面部两颊微内收，宽方颐，下颌向前斜伸。整体采用凹凸范铸造而成。",
+        "sourceCitationTodo": "TODO",
+        "artifactNameCn": "青铜大面具",
+        "academicNote": "该人面具体型较大，是目前三星堆祭祀坑出土形制最完整、体量最大、保存最完好的大型青铜面具。其方面，宽额，长刀眉，眉较平，三角形鼻，鼻梁短直，鼻头肥大。长方形竖耳。面部两颊微内收，宽方颐，下颌向前斜伸。整体采用凹凸范铸造而成。"
+      },
+      "selectableFragments": [
+        {
+          "id": "set_1_lower_left",
+          "fileName": "1-lowleft.png",
+          "partKey": "lower_left",
+          "role": "selectable_fragment",
+          "url": "/fragments/1/1-lowleft.png",
+          "localPath": "fragments/1/1-lowleft.png",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 154408,
+          "slotLabelCn": "左下碎片",
+          "academicNoteTodo": "默认无单独文献说明。",
+          "sourceCitationTodo": "TODO",
+          "artifactNameCn": "青铜大面具",
+          "fragmentNameCn": "1-左下碎片",
+          "hasSpecificAcademicInfo": false,
+          "academicNote": ""
+        },
+        {
+          "id": "set_1_lower_right",
+          "fileName": "1-lowright.png",
+          "partKey": "lower_right",
+          "role": "selectable_fragment",
+          "url": "/fragments/1/1-lowright.png",
+          "localPath": "fragments/1/1-lowright.png",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 104722,
+          "slotLabelCn": "右下碎片",
+          "academicNoteTodo": "默认无单独文献说明。",
+          "sourceCitationTodo": "TODO",
+          "artifactNameCn": "青铜大面具",
+          "fragmentNameCn": "1-右下碎片",
+          "hasSpecificAcademicInfo": false,
+          "academicNote": ""
+        },
+        {
+          "id": "set_1_top_left",
+          "fileName": "1-topleft.png",
+          "partKey": "top_left",
+          "role": "selectable_fragment",
+          "url": "/fragments/1/1-topleft.png",
+          "localPath": "fragments/1/1-topleft.png",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 184880,
+          "slotLabelCn": "左上碎片",
+          "academicNoteTodo": "默认无单独文献说明。",
+          "sourceCitationTodo": "TODO",
+          "artifactNameCn": "青铜大面具",
+          "fragmentNameCn": "1-左上碎片",
+          "hasSpecificAcademicInfo": false,
+          "academicNote": ""
+        },
+        {
+          "id": "set_1_top_right",
+          "fileName": "1-topright.png",
+          "partKey": "top_right",
+          "role": "selectable_fragment",
+          "url": "/fragments/1/1-topright.png",
+          "localPath": "fragments/1/1-topright.png",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 233628,
+          "slotLabelCn": "右上碎片",
+          "academicNoteTodo": "默认无单独文献说明。",
+          "sourceCitationTodo": "TODO",
+          "artifactNameCn": "青铜大面具",
+          "fragmentNameCn": "1-右上碎片",
+          "hasSpecificAcademicInfo": false,
+          "academicNote": ""
+        }
+      ],
+      "availablePartKeys": [
+        "lower_left",
+        "lower_right",
+        "top_left",
+        "top_right"
+      ],
+      "missingExpectedPartKeys": [],
+      "bindToPrototypeMaskIdTodo": "bronze_large_mask",
+      "bindConfidenceTodo": "confirmed_by_user",
+      "curatorNoteTodo": "该人面具体型较大，是目前三星堆祭祀坑出土形制最完整、体量最大、保存最完好的大型青铜面具。其方面，宽额，长刀眉，眉较平，三角形鼻，鼻梁短直，鼻头肥大。长方形竖耳。面部两颊微内收，宽方颐，下颌向前斜伸。整体采用凹凸范铸造而成。",
+      "prototypeMaskId": "bronze_large_mask",
+      "artifactNameCn": "青铜大面具",
+      "artifactType": "bronze_mask",
+      "maskDescription": "该人面具体型较大，是目前三星堆祭祀坑出土形制最完整、体量最大、保存最完好的大型青铜面具。其方面，宽额，长刀眉，眉较平，三角形鼻，鼻梁短直，鼻头肥大。长方形竖耳。面部两颊微内收，宽方颐，下颌向前斜伸。整体采用凹凸范铸造而成。"
+    },
+    {
+      "id": "fragment_set_2",
+      "folderName": "2",
+      "sourceFolder": "fragments/2",
+      "completeImage": {
+        "id": "set_2_full",
+        "fileName": "2-full.png",
+        "partKey": "full",
+        "role": "complete_reference_image",
+        "url": "/fragments/2/2-full.png",
+        "localPath": "fragments/2/2-full.png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 794926,
+        "slotLabelCn": "完整参考图",
+        "academicNoteTodo": "TODO: 填写「薄金人面」的文物名称、出土信息、形制说明和引用来源。",
+        "sourceCitationTodo": "TODO",
+        "artifactNameCn": "薄金人面"
+      },
+      "selectableFragments": [
+        {
+          "id": "set_2_lower_left",
+          "fileName": "2-lowleft.png",
+          "partKey": "lower_left",
+          "role": "selectable_fragment",
+          "url": "/fragments/2/2-lowleft.png",
+          "localPath": "fragments/2/2-lowleft.png",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 201493,
+          "slotLabelCn": "左下碎片",
+          "academicNoteTodo": "默认无单独文献说明。",
+          "sourceCitationTodo": "TODO",
+          "artifactNameCn": "薄金人面",
+          "fragmentNameCn": "2-左下碎片",
+          "hasSpecificAcademicInfo": false,
+          "academicNote": ""
+        },
+        {
+          "id": "set_2_lower_right",
+          "fileName": "2-lowright.png",
+          "partKey": "lower_right",
+          "role": "selectable_fragment",
+          "url": "/fragments/2/2-lowright.png",
+          "localPath": "fragments/2/2-lowright.png",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 201753,
+          "slotLabelCn": "右下碎片",
+          "academicNoteTodo": "默认无单独文献说明。",
+          "sourceCitationTodo": "TODO",
+          "artifactNameCn": "薄金人面",
+          "fragmentNameCn": "2-右下碎片",
+          "hasSpecificAcademicInfo": false,
+          "academicNote": ""
+        },
+        {
+          "id": "set_2_top_left",
+          "fileName": "2-topleft.png",
+          "partKey": "top_left",
+          "role": "selectable_fragment",
+          "url": "/fragments/2/2-topleft.png",
+          "localPath": "fragments/2/2-topleft.png",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 279262,
+          "slotLabelCn": "左上碎片",
+          "academicNoteTodo": "默认无单独文献说明。",
+          "sourceCitationTodo": "TODO",
+          "artifactNameCn": "薄金人面",
+          "fragmentNameCn": "2-左上碎片",
+          "hasSpecificAcademicInfo": false,
+          "academicNote": ""
+        },
+        {
+          "id": "set_2_top_right",
+          "fileName": "2-topright.png",
+          "partKey": "top_right",
+          "role": "selectable_fragment",
+          "url": "/fragments/2/2-topright.png",
+          "localPath": "fragments/2/2-topright.png",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 327355,
+          "slotLabelCn": "右上碎片",
+          "academicNoteTodo": "默认无单独文献说明。",
+          "sourceCitationTodo": "TODO",
+          "artifactNameCn": "薄金人面",
+          "fragmentNameCn": "2-右上碎片",
+          "hasSpecificAcademicInfo": false,
+          "academicNote": ""
+        }
+      ],
+      "availablePartKeys": [
+        "lower_left",
+        "lower_right",
+        "top_left",
+        "top_right"
+      ],
+      "missingExpectedPartKeys": [],
+      "bindToPrototypeMaskIdTodo": "thin_gold_human_face",
+      "bindConfidenceTodo": "confirmed_by_user",
+      "curatorNoteTodo": "fragments/2 已由用户确认对应「薄金人面」。TODO: 补充该形象与切片逻辑的文献解释。",
+      "prototypeMaskId": "thin_gold_human_face",
+      "artifactNameCn": "薄金人面",
+      "artifactType": "gold_face"
+    },
+    {
+      "id": "fragment_set_3",
+      "folderName": "3",
+      "sourceFolder": "fragments/3",
+      "completeImage": {
+        "id": "set_3_full",
+        "fileName": "3-full.png",
+        "partKey": "full",
+        "role": "complete_reference_image",
+        "url": "/fragments/3/3-full.png",
+        "localPath": "fragments/3/3-full.png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 587203,
+        "slotLabelCn": "完整参考图",
+        "academicNoteTodo": "人头像头后部有因铸造缺陷而补铸的痕迹。头顶盖与头像分铸，顶盖已脱落无存。脑后发际线较高。脸瘦削，粗眉，立眼，蒜头鼻，阔口，大耳，耳廓外展，耳垂穿孔。颈直，颈下端前后均铸成倒尖角，前短后长，颈两侧各有一圆孔。颈后侧有被砸击的凹痕。",
+        "sourceCitationTodo": "TODO",
+        "artifactNameCn": "商青铜人",
+        "academicNote": "人头像头后部有因铸造缺陷而补铸的痕迹。头顶盖与头像分铸，顶盖已脱落无存。脑后发际线较高。脸瘦削，粗眉，立眼，蒜头鼻，阔口，大耳，耳廓外展，耳垂穿孔。颈直，颈下端前后均铸成倒尖角，前短后长，颈两侧各有一圆孔。颈后侧有被砸击的凹痕。"
+      },
+      "selectableFragments": [
+        {
+          "id": "set_3_lower_left",
+          "fileName": "3-lowleft.png",
+          "partKey": "lower_left",
+          "role": "selectable_fragment",
+          "url": "/fragments/3/3-lowleft.png",
+          "localPath": "fragments/3/3-lowleft.png",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 147709,
+          "slotLabelCn": "左下碎片",
+          "academicNoteTodo": "默认无单独文献说明。",
+          "sourceCitationTodo": "TODO",
+          "artifactNameCn": "商青铜人",
+          "fragmentNameCn": "3-左下碎片",
+          "hasSpecificAcademicInfo": false,
+          "academicNote": ""
+        },
+        {
+          "id": "set_3_lower_right",
+          "fileName": "3-lowright.png",
+          "partKey": "lower_right",
+          "role": "selectable_fragment",
+          "url": "/fragments/3/3-lowright.png",
+          "localPath": "fragments/3/3-lowright.png",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 144122,
+          "slotLabelCn": "右下碎片",
+          "academicNoteTodo": "默认无单独文献说明。",
+          "sourceCitationTodo": "TODO",
+          "artifactNameCn": "商青铜人",
+          "fragmentNameCn": "3-右下碎片",
+          "hasSpecificAcademicInfo": false,
+          "academicNote": ""
+        },
+        {
+          "id": "set_3_top_left",
+          "fileName": "3-topleft.png",
+          "partKey": "top_left",
+          "role": "selectable_fragment",
+          "url": "/fragments/3/3-topleft.png",
+          "localPath": "fragments/3/3-topleft.png",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 263001,
+          "slotLabelCn": "左上碎片",
+          "academicNoteTodo": "略呈长方形，耳垂处有一圆形穿孔。其上饰有云雷纹，即用连续的回旋形线条构成的几何纹样。由柔和回旋的线条组成的是云纹，用方折角回旋的线条组成的是雷纹。",
+          "sourceCitationTodo": "TODO",
+          "artifactNameCn": "商青铜人",
+          "fragmentNameCn": "耳部云雷纹碎片",
+          "hasSpecificAcademicInfo": true,
+          "academicNote": "略呈长方形，耳垂处有一圆形穿孔。其上饰有云雷纹，即用连续的回旋形线条构成的几何纹样。由柔和回旋的线条组成的是云纹，用方折角回旋的线条组成的是雷纹。"
+        },
+        {
+          "id": "set_3_top_right",
+          "fileName": "3-topright.png",
+          "partKey": "top_right",
+          "role": "selectable_fragment",
+          "url": "/fragments/3/3-topright.png",
+          "localPath": "fragments/3/3-topright.png",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 221255,
+          "slotLabelCn": "右上碎片",
+          "academicNoteTodo": "略呈长方形，耳垂处有一圆形穿孔。其上饰有云雷纹，即用连续的回旋形线条构成的几何纹样。由柔和回旋的线条组成的是云纹，用方折角回旋的线条组成的是雷纹。",
+          "sourceCitationTodo": "TODO",
+          "artifactNameCn": "商青铜人",
+          "fragmentNameCn": "耳部云雷纹碎片",
+          "hasSpecificAcademicInfo": true,
+          "academicNote": "略呈长方形，耳垂处有一圆形穿孔。其上饰有云雷纹，即用连续的回旋形线条构成的几何纹样。由柔和回旋的线条组成的是云纹，用方折角回旋的线条组成的是雷纹。"
+        }
+      ],
+      "availablePartKeys": [
+        "lower_left",
+        "lower_right",
+        "top_left",
+        "top_right"
+      ],
+      "missingExpectedPartKeys": [],
+      "bindToPrototypeMaskIdTodo": "shang_bronze_human",
+      "bindConfidenceTodo": "confirmed_by_user",
+      "curatorNoteTodo": "人头像头后部有因铸造缺陷而补铸的痕迹。头顶盖与头像分铸，顶盖已脱落无存。脑后发际线较高。脸瘦削，粗眉，立眼，蒜头鼻，阔口，大耳，耳廓外展，耳垂穿孔。颈直，颈下端前后均铸成倒尖角，前短后长，颈两侧各有一圆孔。颈后侧有被砸击的凹痕。",
+      "prototypeMaskId": "shang_bronze_human",
+      "artifactNameCn": "商青铜人",
+      "artifactType": "bronze_human",
+      "maskDescription": "人头像头后部有因铸造缺陷而补铸的痕迹。头顶盖与头像分铸，顶盖已脱落无存。脑后发际线较高。脸瘦削，粗眉，立眼，蒜头鼻，阔口，大耳，耳廓外展，耳垂穿孔。颈直，颈下端前后均铸成倒尖角，前短后长，颈两侧各有一圆孔。颈后侧有被砸击的凹痕。"
+    },
+    {
+      "id": "fragment_set_4",
+      "folderName": "4",
+      "sourceFolder": "fragments/4",
+      "completeImage": {
+        "id": "set_4_full",
+        "fileName": "4-full.png",
+        "partKey": "full",
+        "role": "complete_reference_image",
+        "url": "/fragments/4/4-full.png",
+        "localPath": "fragments/4/4-full.png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 689521,
+        "slotLabelCn": "完整参考图",
+        "academicNoteTodo": "该兽面体型较大，方颐，倒八字形刀眉，纵目，鹰钩鼻，鼻翼呈旋涡状，阔口，口缝深长，舌尖外露，下颌略向前伸。双兽耳稍向上耸起。在额正中及耳前上、下各有一方形穿孔。",
+        "sourceCitationTodo": "TODO",
+        "artifactNameCn": "大型纵目兽面",
+        "academicNote": "该兽面体型较大，方颐，倒八字形刀眉，纵目，鹰钩鼻，鼻翼呈旋涡状，阔口，口缝深长，舌尖外露，下颌略向前伸。双兽耳稍向上耸起。在额正中及耳前上、下各有一方形穿孔。"
+      },
+      "selectableFragments": [
+        {
+          "id": "set_4_lower_left",
+          "fileName": "4-lowleft.png",
+          "partKey": "lower_left",
+          "role": "selectable_fragment",
+          "url": "/fragments/4/4-lowleft.png",
+          "localPath": "fragments/4/4-lowleft.png",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 177579,
+          "slotLabelCn": "左下碎片",
+          "academicNoteTodo": "默认无单独文献说明。",
+          "sourceCitationTodo": "TODO",
+          "artifactNameCn": "大型纵目兽面",
+          "fragmentNameCn": "4-左下碎片",
+          "hasSpecificAcademicInfo": false,
+          "academicNote": ""
+        },
+        {
+          "id": "set_4_lower_right",
+          "fileName": "4-lowright.png",
+          "partKey": "lower_right",
+          "role": "selectable_fragment",
+          "url": "/fragments/4/4-lowright.png",
+          "localPath": "fragments/4/4-lowright.png",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 165339,
+          "slotLabelCn": "右下碎片",
+          "academicNoteTodo": "默认无单独文献说明。",
+          "sourceCitationTodo": "TODO",
+          "artifactNameCn": "大型纵目兽面",
+          "fragmentNameCn": "4-右下碎片",
+          "hasSpecificAcademicInfo": false,
+          "academicNote": ""
+        },
+        {
+          "id": "set_4_top_left",
+          "fileName": "4-topleft.png",
+          "partKey": "top_left",
+          "role": "selectable_fragment",
+          "url": "/fragments/4/4-topleft.png",
+          "localPath": "fragments/4/4-topleft.png",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 231723,
+          "slotLabelCn": "左上碎片",
+          "academicNoteTodo": "眼球呈圆简状向前伸出，将眼肌拉出附着在眼球上，眼球中间有一带状装饰。该纵目采用嵌铸法铸造。",
+          "sourceCitationTodo": "TODO",
+          "artifactNameCn": "大型纵目兽面",
+          "fragmentNameCn": "纵目",
+          "hasSpecificAcademicInfo": true,
+          "academicNote": "眼球呈圆简状向前伸出，将眼肌拉出附着在眼球上，眼球中间有一带状装饰。该纵目采用嵌铸法铸造。"
+        },
+        {
+          "id": "set_4_top_right",
+          "fileName": "4-topright.png",
+          "partKey": "top_right",
+          "role": "selectable_fragment",
+          "url": "/fragments/4/4-topright.png",
+          "localPath": "fragments/4/4-topright.png",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 257818,
+          "slotLabelCn": "右上碎片",
+          "academicNoteTodo": "眼球呈圆简状向前伸出，将眼肌拉出附着在眼球上，眼球中间有一带状装饰。该纵目采用嵌铸法铸造。",
+          "sourceCitationTodo": "TODO",
+          "artifactNameCn": "大型纵目兽面",
+          "fragmentNameCn": "纵目",
+          "hasSpecificAcademicInfo": true,
+          "academicNote": "眼球呈圆简状向前伸出，将眼肌拉出附着在眼球上，眼球中间有一带状装饰。该纵目采用嵌铸法铸造。"
+        }
+      ],
+      "availablePartKeys": [
+        "lower_left",
+        "lower_right",
+        "top_left",
+        "top_right"
+      ],
+      "missingExpectedPartKeys": [],
+      "bindToPrototypeMaskIdTodo": "large_protruding_eye_beast_mask",
+      "bindConfidenceTodo": "confirmed_by_user",
+      "curatorNoteTodo": "该兽面体型较大，方颐，倒八字形刀眉，纵目，鹰钩鼻，鼻翼呈旋涡状，阔口，口缝深长，舌尖外露，下颌略向前伸。双兽耳稍向上耸起。在额正中及耳前上、下各有一方形穿孔。",
+      "prototypeMaskId": "large_protruding_eye_beast_mask",
+      "artifactNameCn": "大型纵目兽面",
+      "artifactType": "bronze_beast_mask",
+      "maskDescription": "该兽面体型较大，方颐，倒八字形刀眉，纵目，鹰钩鼻，鼻翼呈旋涡状，阔口，口缝深长，舌尖外露，下颌略向前伸。双兽耳稍向上耸起。在额正中及耳前上、下各有一方形穿孔。"
+    },
+    {
+      "id": "fragment_set_5",
+      "folderName": "5",
+      "sourceFolder": "fragments/5",
+      "completeImage": {
+        "id": "set_5_full",
+        "fileName": "5-full.png",
+        "partKey": "full",
+        "role": "complete_reference_image",
+        "url": "/fragments/5/5-full.png",
+        "localPath": "fragments/5/5-full.png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 402750,
+        "slotLabelCn": "完整参考图",
+        "academicNoteTodo": "TODO: 填写「半覆金面」的文物名称、出土信息、形制说明和引用来源。",
+        "sourceCitationTodo": "TODO",
+        "artifactNameCn": "半覆金面"
+      },
+      "selectableFragments": [
+        {
+          "id": "set_5_lower_left",
+          "fileName": "5-lowleft.png",
+          "partKey": "lower_left",
+          "role": "selectable_fragment",
+          "url": "/fragments/5/5-lowleft.png",
+          "localPath": "fragments/5/5-lowleft.png",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 259434,
+          "slotLabelCn": "左下碎片",
+          "academicNoteTodo": "默认无单独文献说明。",
+          "sourceCitationTodo": "TODO",
+          "artifactNameCn": "半覆金面",
+          "fragmentNameCn": "5-左下碎片",
+          "hasSpecificAcademicInfo": false,
+          "academicNote": ""
+        },
+        {
+          "id": "set_5_top_left",
+          "fileName": "5-topleft.png",
+          "partKey": "top_left",
+          "role": "selectable_fragment",
+          "url": "/fragments/5/5-topleft.png",
+          "localPath": "fragments/5/5-topleft.png",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 173181,
+          "slotLabelCn": "左上碎片",
+          "academicNoteTodo": "默认无单独文献说明。",
+          "sourceCitationTodo": "TODO",
+          "artifactNameCn": "半覆金面",
+          "fragmentNameCn": "5-左上碎片",
+          "hasSpecificAcademicInfo": false,
+          "academicNote": ""
+        }
+      ],
+      "availablePartKeys": [
+        "lower_left",
+        "top_left"
+      ],
+      "missingExpectedPartKeys": [
+        "top_right",
+        "lower_right"
+      ],
+      "bindToPrototypeMaskIdTodo": "half_covered_gold_face",
+      "bindConfidenceTodo": "confirmed_by_user",
+      "curatorNoteTodo": "fragments/5 已由用户确认对应「半覆金面」。TODO: 补充该形象与切片逻辑的文献解释。",
+      "prototypeMaskId": "half_covered_gold_face",
+      "artifactNameCn": "半覆金面",
+      "artifactType": "gold_covered_face"
+    }
+  ],
+  "motifSelection": {
+    "selectRule": "single_or_multiple",
+    "motifIds": [
+      "cloud_thunder",
+      "sun_motif",
+      "sacred_tree",
+      "eye_motif",
+      "gold_inlay"
+    ],
+    "academicNoteTodo": "TODO: 每个纹样需要补来源、形态、象征意义、引用来源。具体记录仍放在 mask-library.json 的 motifLibrary 中。"
+  },
+  "aiInputMapping": {
+    "required": [
+      "prototypeMaskId",
+      "selectedFragmentImageIds",
+      "selectedMotifIds"
+    ],
+    "optional": [
+      "userPrompt",
+      "styleStrength",
+      "materialPreference"
+    ],
+    "imageGenerationPromptTemplateTodo": "TODO: 根据所选完整形象、碎片部位、纹样和学术解释组装中文 prompt。",
+    "imageTo3dInput": "Use generated image URL as image-to-3d source."
+  },
+  "artifactSetIndex": {
+    "fragment_set_1": {
+      "prototypeMaskId": "bronze_large_mask",
+      "artifactNameCn": "青铜大面具",
+      "sourceFolder": "fragments/1"
+    },
+    "fragment_set_2": {
+      "prototypeMaskId": "thin_gold_human_face",
+      "artifactNameCn": "薄金人面",
+      "sourceFolder": "fragments/2"
+    },
+    "fragment_set_3": {
+      "prototypeMaskId": "shang_bronze_human",
+      "artifactNameCn": "商青铜人",
+      "sourceFolder": "fragments/3"
+    },
+    "fragment_set_4": {
+      "prototypeMaskId": "large_protruding_eye_beast_mask",
+      "artifactNameCn": "大型纵目兽面",
+      "sourceFolder": "fragments/4"
+    },
+    "fragment_set_5": {
+      "prototypeMaskId": "half_covered_gold_face",
+      "artifactNameCn": "半覆金面",
+      "sourceFolder": "fragments/5"
+    }
+  }
+}

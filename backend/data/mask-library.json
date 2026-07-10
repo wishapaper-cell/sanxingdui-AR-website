@@ -1,0 +1,285 @@
+{
+  "version": "0.1.0",
+  "updatedAt": "2026-07-04",
+  "purpose": "Database framework for three real Sanxingdui mask prototypes, their cut fragments, selectable motifs, and academic notes to be filled by the team.",
+  "workflow": {
+    "step1": "User selects one or more fragments from a real prototype mask.",
+    "step2": "User selects one or more motifs.",
+    "step3": "AI generates a custom 2D mask based on selected parts and motifs.",
+    "step4": "The generated image is converted into a 3D model."
+  },
+  "assetConventions": {
+    "realPrototypeRoot": "/assets/real-masks",
+    "fragmentRoot": "/assets/real-mask-fragments",
+    "motifRoot": "/assets/motifs",
+    "suggestedFileLayout": [
+      "/assets/real-masks/{maskId}/full.png",
+      "/assets/real-mask-fragments/{maskId}/{fragmentId}.png",
+      "/assets/motifs/{motifId}.png"
+    ]
+  },
+  "prototypeMasks": [
+    {
+      "id": "adult_mask",
+      "displayNameCn": "\u5927\u4eba\u9762\u5177",
+      "displayNameEn": "Large Human Mask",
+      "isRealArtifact": true,
+      "artifactType": "bronze_mask",
+      "fullImage": {
+        "path": "/assets/real-masks/adult_mask/full.png",
+        "status": "TODO_REPLACE_WITH_REAL_IMAGE"
+      },
+      "fragments": [
+        {
+          "id": "adult_mask_brow",
+          "displayNameCn": "\u989d\u90e8\u4e0e\u7709\u5f13\u788e\u7247",
+          "slot": "brow",
+          "imagePath": "/assets/real-mask-fragments/adult_mask/adult_mask_brow.png",
+          "promptTags": ["broad brow", "bronze mask brow", "human mask"],
+          "academicNoteTodo": "TODO: Fill literature explanation for brow shape, ritual meaning, and source citation.",
+          "sourceCitationTodo": "TODO"
+        },
+        {
+          "id": "adult_mask_left_eye",
+          "displayNameCn": "\u5de6\u773c\u788e\u7247",
+          "slot": "left_eye",
+          "imagePath": "/assets/real-mask-fragments/adult_mask/adult_mask_left_eye.png",
+          "promptTags": ["left eye", "human mask eye", "bronze eye socket"],
+          "academicNoteTodo": "TODO",
+          "sourceCitationTodo": "TODO"
+        },
+        {
+          "id": "adult_mask_right_eye",
+          "displayNameCn": "\u53f3\u773c\u788e\u7247",
+          "slot": "right_eye",
+          "imagePath": "/assets/real-mask-fragments/adult_mask/adult_mask_right_eye.png",
+          "promptTags": ["right eye", "human mask eye", "bronze eye socket"],
+          "academicNoteTodo": "TODO",
+          "sourceCitationTodo": "TODO"
+        },
+        {
+          "id": "adult_mask_mouth",
+          "displayNameCn": "\u53e3\u90e8\u788e\u7247",
+          "slot": "mouth",
+          "imagePath": "/assets/real-mask-fragments/adult_mask/adult_mask_mouth.png",
+          "promptTags": ["mouth structure", "solemn expression", "bronze mask mouth"],
+          "academicNoteTodo": "TODO",
+          "sourceCitationTodo": "TODO"
+        },
+        {
+          "id": "adult_mask_ear",
+          "displayNameCn": "\u8033\u90e8\u788e\u7247",
+          "slot": "ear",
+          "imagePath": "/assets/real-mask-fragments/adult_mask/adult_mask_ear.png",
+          "promptTags": ["wide ear", "bronze ear", "ritual mask ear"],
+          "academicNoteTodo": "TODO",
+          "sourceCitationTodo": "TODO"
+        }
+      ],
+      "academicProfile": {
+        "periodTodo": "TODO",
+        "artifactDescriptionTodo": "TODO",
+        "visualFeatureTodo": "TODO",
+        "ritualInterpretationTodo": "TODO",
+        "referencesTodo": []
+      },
+      "aiGenerationHints": {
+        "basePromptCnTodo": "TODO: Fill Chinese base prompt for this prototype.",
+        "negativePromptTodo": "avoid modern helmet, avoid sci-fi robot, avoid cartoon plastic texture",
+        "styleTags": ["Sanxingdui", "bronze", "ritual", "symmetry", "museum artifact"]
+      }
+    },
+    {
+      "id": "large_protruding_eye_beast_mask",
+      "displayNameCn": "\u5927\u578b\u7eb5\u76ee\u517d\u9762\u5177",
+      "displayNameEn": "Large Protruding-Eye Beast Mask",
+      "isRealArtifact": true,
+      "artifactType": "bronze_beast_mask",
+      "fullImage": {
+        "path": "/assets/real-masks/large_protruding_eye_beast_mask/full.png",
+        "status": "TODO_REPLACE_WITH_REAL_IMAGE"
+      },
+      "fragments": [
+        {
+          "id": "beast_mask_protruding_eye",
+          "displayNameCn": "\u7eb5\u76ee\u773c\u67f1\u788e\u7247",
+          "slot": "protruding_eye",
+          "imagePath": "/assets/real-mask-fragments/large_protruding_eye_beast_mask/beast_mask_protruding_eye.png",
+          "promptTags": ["protruding eyes", "cylindrical eyes", "divine gaze"],
+          "academicNoteTodo": "TODO",
+          "sourceCitationTodo": "TODO"
+        },
+        {
+          "id": "beast_mask_horn",
+          "displayNameCn": "\u989d\u9970\u6216\u89d2\u72b6\u788e\u7247",
+          "slot": "horn_or_forehead",
+          "imagePath": "/assets/real-mask-fragments/large_protruding_eye_beast_mask/beast_mask_horn.png",
+          "promptTags": ["forehead ornament", "horn-like structure", "beast mask"],
+          "academicNoteTodo": "TODO",
+          "sourceCitationTodo": "TODO"
+        },
+        {
+          "id": "beast_mask_left_ear",
+          "displayNameCn": "\u5de6\u8033\u788e\u7247",
+          "slot": "left_ear",
+          "imagePath": "/assets/real-mask-fragments/large_protruding_eye_beast_mask/beast_mask_left_ear.png",
+          "promptTags": ["large ear", "beast ear", "bronze ear"],
+          "academicNoteTodo": "TODO",
+          "sourceCitationTodo": "TODO"
+        },
+        {
+          "id": "beast_mask_right_ear",
+          "displayNameCn": "\u53f3\u8033\u788e\u7247",
+          "slot": "right_ear",
+          "imagePath": "/assets/real-mask-fragments/large_protruding_eye_beast_mask/beast_mask_right_ear.png",
+          "promptTags": ["large ear", "beast ear", "bronze ear"],
+          "academicNoteTodo": "TODO",
+          "sourceCitationTodo": "TODO"
+        },
+        {
+          "id": "beast_mask_jaw",
+          "displayNameCn": "\u4e0b\u988c\u4e0e\u53e3\u90e8\u788e\u7247",
+          "slot": "jaw",
+          "imagePath": "/assets/real-mask-fragments/large_protruding_eye_beast_mask/beast_mask_jaw.png",
+          "promptTags": ["beast jaw", "ritual mouth", "powerful lower face"],
+          "academicNoteTodo": "TODO",
+          "sourceCitationTodo": "TODO"
+        }
+      ],
+      "academicProfile": {
+        "periodTodo": "TODO",
+        "artifactDescriptionTodo": "TODO",
+        "visualFeatureTodo": "TODO",
+        "ritualInterpretationTodo": "TODO",
+        "referencesTodo": []
+      },
+      "aiGenerationHints": {
+        "basePromptCnTodo": "TODO",
+        "negativePromptTodo": "avoid cute animal, avoid sci-fi monster, avoid plastic toy",
+        "styleTags": ["Sanxingdui", "protruding eyes", "beast face", "bronze oxidation", "ritual power"]
+      }
+    },
+    {
+      "id": "ritual_gold_mask",
+      "displayNameCn": "\u796d\u7940\u91d1\u9762\u5177",
+      "displayNameEn": "Ritual Gold Mask",
+      "isRealArtifact": true,
+      "artifactType": "gold_mask",
+      "fullImage": {
+        "path": "/assets/real-masks/ritual_gold_mask/full.png",
+        "status": "TODO_REPLACE_WITH_REAL_IMAGE"
+      },
+      "fragments": [
+        {
+          "id": "gold_mask_forehead",
+          "displayNameCn": "\u989d\u90e8\u91d1\u9762\u788e\u7247",
+          "slot": "forehead",
+          "imagePath": "/assets/real-mask-fragments/ritual_gold_mask/gold_mask_forehead.png",
+          "promptTags": ["gold forehead", "thin gold sheet", "ritual gold mask"],
+          "academicNoteTodo": "TODO",
+          "sourceCitationTodo": "TODO"
+        },
+        {
+          "id": "gold_mask_eye",
+          "displayNameCn": "\u773c\u90e8\u91d1\u9762\u788e\u7247",
+          "slot": "eye",
+          "imagePath": "/assets/real-mask-fragments/ritual_gold_mask/gold_mask_eye.png",
+          "promptTags": ["gold eye opening", "ritual gaze", "gold mask eye"],
+          "academicNoteTodo": "TODO",
+          "sourceCitationTodo": "TODO"
+        },
+        {
+          "id": "gold_mask_cheek",
+          "displayNameCn": "\u9762\u988a\u91d1\u9762\u788e\u7247",
+          "slot": "cheek",
+          "imagePath": "/assets/real-mask-fragments/ritual_gold_mask/gold_mask_cheek.png",
+          "promptTags": ["gold cheek", "facial cover", "ceremonial gold"],
+          "academicNoteTodo": "TODO",
+          "sourceCitationTodo": "TODO"
+        },
+        {
+          "id": "gold_mask_mouth",
+          "displayNameCn": "\u53e3\u90e8\u91d1\u9762\u788e\u7247",
+          "slot": "mouth",
+          "imagePath": "/assets/real-mask-fragments/ritual_gold_mask/gold_mask_mouth.png",
+          "promptTags": ["gold mouth", "solemn face", "ritual authority"],
+          "academicNoteTodo": "TODO",
+          "sourceCitationTodo": "TODO"
+        }
+      ],
+      "academicProfile": {
+        "periodTodo": "TODO",
+        "artifactDescriptionTodo": "TODO",
+        "visualFeatureTodo": "TODO",
+        "ritualInterpretationTodo": "TODO",
+        "referencesTodo": []
+      },
+      "aiGenerationHints": {
+        "basePromptCnTodo": "TODO",
+        "negativePromptTodo": "avoid modern jewelry, avoid cyberpunk gold, avoid glossy plastic",
+        "styleTags": ["Sanxingdui", "gold mask", "ritual authority", "thin gold sheet", "sacred identity"]
+      }
+    }
+  ],
+  "motifLibrary": [
+    {
+      "id": "cloud_thunder",
+      "displayNameCn": "\u4e91\u96f7\u7eb9",
+      "selectMode": "multi",
+      "imagePath": "/assets/motifs/cloud_thunder.png",
+      "promptTags": ["cloud thunder pattern", "repeating bronze ornament"],
+      "academicNoteTodo": "TODO: Fill motif origin, formal features, and citation."
+    },
+    {
+      "id": "sun_motif",
+      "displayNameCn": "\u592a\u9633\u7eb9",
+      "selectMode": "multi",
+      "imagePath": "/assets/motifs/sun_motif.png",
+      "promptTags": ["sun motif", "radiant ceremonial symbol"],
+      "academicNoteTodo": "TODO"
+    },
+    {
+      "id": "sacred_tree",
+      "displayNameCn": "\u795e\u6811\u7eb9",
+      "selectMode": "multi",
+      "imagePath": "/assets/motifs/sacred_tree.png",
+      "promptTags": ["sacred tree motif", "vertical bronze branch pattern"],
+      "academicNoteTodo": "TODO"
+    },
+    {
+      "id": "eye_motif",
+      "displayNameCn": "\u76ee\u7eb9",
+      "selectMode": "multi",
+      "imagePath": "/assets/motifs/eye_motif.png",
+      "promptTags": ["eye motif", "divine gaze symbol"],
+      "academicNoteTodo": "TODO"
+    },
+    {
+      "id": "gold_inlay",
+      "displayNameCn": "\u91d1\u9762\u88c5\u9970",
+      "selectMode": "multi",
+      "imagePath": "/assets/motifs/gold_inlay.png",
+      "promptTags": ["gold facial decoration", "ritual gold surface"],
+      "academicNoteTodo": "TODO"
+    }
+  ],
+  "generationRequestSchema": {
+    "prototypeMaskId": "adult_mask",
+    "selectedFragmentIds": ["adult_mask_brow", "adult_mask_left_eye"],
+    "selectedMotifIds": ["cloud_thunder", "eye_motif"],
+    "generationMode": "parts_to_image_then_image_to_3d",
+    "userPromptOptional": "optional user custom preference",
+    "expectedOutput": {
+      "imageTask": "custom 2D mask image",
+      "modelTask": "3D model converted from generated image",
+      "metadata": "keep selected real-source fragments and motifs for explanation"
+    }
+  },
+  "fillInstructions": [
+    "Replace fullImage.path and fragment imagePath values after cutting the three real masks.",
+    "Fill academicProfile for each prototype mask.",
+    "Fill academicNoteTodo and sourceCitationTodo for each fragment.",
+    "Fill motif academicNoteTodo for every selectable motif.",
+    "Keep promptTags short and machine-readable for AI prompt assembly."
+  ]
+}
