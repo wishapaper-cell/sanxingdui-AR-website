@@ -1,0 +1,207 @@
+{
+  "version": "0.1.0",
+  "updatedAt": "2026-07-04",
+  "note": "These records describe AI-generated Sanxingdui-inspired mask assets. Academic notes provide cultural context and should not be presented as exact identification of the generated image.",
+  "sourceSet": {
+    "assetRoot": "/fragments",
+    "pieceNames": ["topleft", "topright", "lowleft", "lowright"],
+    "sourceMeaning": "Each numbered folder contains one AI-generated complete mask image plus cropped fragments used for restoration interaction."
+  },
+  "fragments": [
+    {
+      "id": "1",
+      "displayName": "纵目神面残片组",
+      "theme": "纵目与神性凝视",
+      "identity": "远视神使",
+      "power": "洞察",
+      "asset": {
+        "full": "/fragments/1/1-full.png",
+        "pieces": {
+          "topleft": "/fragments/1/1-topleft.png",
+          "topright": "/fragments/1/1-topright.png",
+          "lowleft": "/fragments/1/1-lowleft.png",
+          "lowright": "/fragments/1/1-lowright.png"
+        }
+      },
+      "academic": {
+        "period": "商代晚期至西周早期前后，约距今三千多年；本条为三星堆风格语境说明。",
+        "context": "三星堆青铜人头像与面具常以夸张眼部、宽耳和方正面部形成强烈的神灵化视觉。纵目造型常被联系到古蜀传说中的蚕丛形象，但具体含义仍存在多种解释。",
+        "visualFeatures": ["柱状或外突的眼部", "横向展开的大耳", "对称、正面化、仪式感强的面部结构"],
+        "interpretation": "在交互系统中可把纵目理解为“超常视野”与“神性凝视”，适合用于表情识别中的眼部发光、视线射线和洞察属性。",
+        "museumCopy": "纵目不是普通眼睛，而是一种被放大的观看能力。它让面具从人脸转向神面。",
+        "keywords": ["纵目", "蚕丛", "古蜀", "青铜面具", "神性凝视"]
+      },
+      "interaction": {
+        "gestureName": "唤醒神面",
+        "arEffect": "眼部发光并向前投射青铜绿光束",
+        "petName": "远视雷纹守护灵"
+      },
+      "references": ["ref-bagley-2001", "ref-sxd-general", "ref-bronze-mask-public"]
+    },
+    {
+      "id": "2",
+      "displayName": "青铜大面具残片组",
+      "theme": "巨型面具与祭祀权威",
+      "identity": "王庭守面者",
+      "power": "威仪",
+      "asset": {
+        "full": "/fragments/2/2-full.png",
+        "pieces": {
+          "topleft": "/fragments/2/2-topleft.png",
+          "topright": "/fragments/2/2-topright.png",
+          "lowleft": "/fragments/2/2-lowleft.png",
+          "lowright": "/fragments/2/2-lowright.png"
+        }
+      },
+      "academic": {
+        "period": "三星堆遗址出土青铜器多与古蜀文明祭祀活动相关，年代集中在商周之际的考古语境中。",
+        "context": "大型青铜面具的尺度远超日常佩戴需求，更适合理解为仪式陈设、神灵象征或权威形象。新一轮发掘中出土的大型面具进一步强化了三星堆祭祀坑中青铜礼仪系统的复杂性。",
+        "visualFeatures": ["大尺度正面面相", "庄重的眉眼比例", "强烈中心轴对称"],
+        "interpretation": "可在系统中表现为“权威”“镇守”“仪式中心”的视觉语义，适合配合低频鼓点、金色边缘光和面具锁定状态。",
+        "museumCopy": "巨大的面具并非为了日常佩戴，而像是把神灵的面容固定在祭祀现场。",
+        "keywords": ["青铜大面具", "祭祀坑", "权威", "仪式陈设", "古蜀礼仪"]
+      },
+      "interaction": {
+        "gestureName": "封存神力",
+        "arEffect": "面具轮廓出现金色铭文并短暂定格",
+        "petName": "青铜王庭灵"
+      },
+      "references": ["ref-ncha-2021", "ref-time-2024", "ref-large-mask-public"]
+    },
+    {
+      "id": "3",
+      "displayName": "神树纹残片组",
+      "theme": "神树、太阳鸟与宇宙观",
+      "identity": "通天巫者",
+      "power": "沟通",
+      "asset": {
+        "full": "/fragments/3/3-full.png",
+        "pieces": {
+          "topleft": "/fragments/3/3-topleft.png",
+          "topright": "/fragments/3/3-topright.png",
+          "lowleft": "/fragments/3/3-lowleft.png",
+          "lowright": "/fragments/3/3-lowright.png"
+        }
+      },
+      "academic": {
+        "period": "以二号祭祀坑出土青铜神树为核心参照，属于三星堆青铜礼仪系统的重要母题。",
+        "context": "青铜神树以树干、枝条、神鸟、龙形构件等组合出复杂的垂直空间想象，常被解释为太阳崇拜、宇宙树和天地交通观念的综合表达。",
+        "visualFeatures": ["枝杈式扩展结构", "鸟、龙等复合神话元素", "强烈的纵向生长感"],
+        "interpretation": "在交互中可转化为面具周围生长出的青铜枝纹、鸟形光点和向上延展的通天路径。",
+        "museumCopy": "神树把天空、地面与神灵世界连在一起，是古蜀宇宙想象的垂直通道。",
+        "keywords": ["青铜神树", "太阳崇拜", "宇宙树", "神鸟", "天地交通"]
+      },
+      "interaction": {
+        "gestureName": "祭祀降临",
+        "arEffect": "青铜树枝纹从脸侧向外生长并出现鸟形光点",
+        "petName": "神树灵使"
+      },
+      "references": ["ref-bronze-tree-public", "ref-bagley-2001", "ref-time-2024"]
+    },
+    {
+      "id": "4",
+      "displayName": "云雷纹残片组",
+      "theme": "纹样秩序与守护感",
+      "identity": "雷纹守护者",
+      "power": "守护",
+      "asset": {
+        "full": "/fragments/4/4-full.png",
+        "pieces": {
+          "topleft": "/fragments/4/4-topleft.png",
+          "topright": "/fragments/4/4-topright.png",
+          "lowleft": "/fragments/4/4-lowleft.png",
+          "lowright": "/fragments/4/4-lowright.png"
+        }
+      },
+      "academic": {
+        "period": "本条为青铜礼器纹样的一般学术语境，与三星堆青铜视觉风格结合用于交互设计。",
+        "context": "云雷纹是中国青铜器中常见的几何化连续纹样，通过回旋线和重复单元营造秩序感。用于三星堆风格面具时，可作为神性边界和护符式纹饰。",
+        "visualFeatures": ["连续回旋线", "几何重复单元", "适合沿面具边缘和额部展开"],
+        "interpretation": "可在 AR 中设计为边缘电光、护盾线圈、手势触发后的纹样点亮。",
+        "museumCopy": "回旋的纹样像一层看不见的边界，把面具转化为守护性的仪式符号。",
+        "keywords": ["云雷纹", "青铜纹样", "几何秩序", "守护", "边界"]
+      },
+      "interaction": {
+        "gestureName": "更换神相",
+        "arEffect": "云雷纹沿面具边缘流动，形成短暂护盾",
+        "petName": "青铜雷纹小卫"
+      },
+      "references": ["ref-bagley-2001", "ref-sxd-general"]
+    },
+    {
+      "id": "5",
+      "displayName": "金面残片组",
+      "theme": "金面、身份与神圣权力",
+      "identity": "王权化身",
+      "power": "光耀",
+      "asset": {
+        "full": "/fragments/5/5-full.png",
+        "pieces": {
+          "topleft": "/fragments/5/5-topleft.png",
+          "lowleft": "/fragments/5/5-lowleft.png"
+        },
+        "missingPieces": ["topright", "lowright"]
+      },
+      "academic": {
+        "period": "三星堆遗址出土有金面罩、金面具残片等金器材料，常与身份、祭祀和神圣权力相关联。",
+        "context": "金器在三星堆遗物中数量不如青铜器庞大，但视觉辨识度极高。金面罩附着于青铜头像或作为面部覆盖物时，会强化身份、权力与神圣性的表达。",
+        "visualFeatures": ["金色面部覆盖", "强调眉眼和面部中心", "与青铜材质形成强烈对比"],
+        "interpretation": "适合作为最终身份生成证书的高等级视觉：金色铭文、王权光环、桌宠隐藏称号。",
+        "museumCopy": "金色覆盖让面具从青铜神面变成身份徽记，显示出更强的神圣与权力感。",
+        "keywords": ["金面具", "金面罩", "身份", "王权", "祭祀"]
+      },
+      "interaction": {
+        "gestureName": "王权显现",
+        "arEffect": "面具浮现金色铭文并生成身份印记",
+        "petName": "金面王庭灵"
+      },
+      "references": ["ref-ncha-2021", "ref-time-2024", "ref-sxd-general"]
+    }
+  ],
+  "references": {
+    "ref-sxd-general": {
+      "title": "三星堆博物馆与三星堆遗址基本资料",
+      "type": "museum/general",
+      "url": "https://www.sxd.cn/",
+      "note": "用于遗址、博物馆与古蜀文明基本背景。"
+    },
+    "ref-bagley-2001": {
+      "title": "Ancient Sichuan: Treasures from a Lost Civilization",
+      "type": "exhibition catalogue",
+      "editor": "Robert Bagley",
+      "publisher": "Seattle Art Museum / Princeton University Press",
+      "year": 2001,
+      "note": "三星堆与古蜀文明研究的重要展览图录，可作为学术背景书目。"
+    },
+    "ref-ncha-2021": {
+      "title": "三星堆新一轮考古发现与祭祀坑材料",
+      "type": "heritage administration/news context",
+      "url": "https://www.ncha.gov.cn/",
+      "note": "用于 2020-2022 年新发现祭祀坑、金面具残片、青铜器等背景。"
+    },
+    "ref-time-2024": {
+      "title": "Sanxingdui Museum",
+      "type": "museum/reportage",
+      "url": "https://time.com/6992401/sanxingdui-museum/",
+      "note": "介绍三星堆博物馆新馆、展陈规模，以及 AI/3D 打印用于修复可视化的公众资料。"
+    },
+    "ref-bronze-mask-public": {
+      "title": "青铜纵目面具公开资料",
+      "type": "public reference",
+      "url": "https://zh.wikipedia.org/wiki/%E9%9D%92%E9%93%9C%E7%BA%B5%E7%9B%AE%E9%9D%A2%E5%85%B7",
+      "note": "用于纵目面具尺寸、视觉特征等快速核对；正式论文应替换为博物馆图录或考古报告。"
+    },
+    "ref-large-mask-public": {
+      "title": "青铜大面具公开资料",
+      "type": "public reference",
+      "url": "https://zh.wikipedia.org/wiki/%E9%9D%92%E9%93%9C%E5%A4%A7%E9%9D%A2%E5%85%B7",
+      "note": "用于大型青铜面具公众资料核对。"
+    },
+    "ref-bronze-tree-public": {
+      "title": "青铜神树公开资料",
+      "type": "public reference",
+      "url": "https://zh.wikipedia.org/wiki/%E9%9D%92%E9%93%9C%E7%A5%9E%E6%A0%91",
+      "note": "用于神树母题、太阳崇拜和宇宙树解释的公众资料核对。"
+    }
+  }
+}
