@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>GLB 模型查看器</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #1a1a1a; color: #e4e6eb; font-family: 'Microsoft YaHei', sans-serif; overflow: hidden; }
+  #info {
+    position: absolute; top: 16px; left: 16px; z-index: 10;
+    background: rgba(15,17,23,0.85); border: 1px solid #2d3142;
+    border-radius: 8px; padding: 12px 16px; font-size: 13px; line-height: 1.6;
+  }
+  #info .title { color: #f59e0b; font-weight: 700; margin-bottom: 6px; }
+  #info .row { color: #9ca3af; }
+  #info .row .val { color: #10b981; font-family: Consolas, monospace; }
+  #canvas { display: block; width: 100vw; height: 100vh; }
+  #loading {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    color: #f59e0b; font-size: 18px; z-index: 20;
+  }
+  #error {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    color: #ef4444; font-size: 16px; z-index: 20; text-align: center; max-width: 80%;
+  }
+</style>
+</head>
+<body>
+<div id="info">
+  <div class="title">混元3D 生成的面具 GLB</div>
+  <div class="row">文件:<span class="val">mask.glb</span></div>
+  <div class="row">操作:<span class="val">左键拖动旋转 · 滚轮缩放 · 右键平移</span></div>
+</div>
+<div id="loading">加载中...</div>
+<div id="error" style="display:none"></div>
+<canvas id="canvas"></canvas>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+const canvas = document.getElementById('canvas');
+const loading = document.getElementById('loading');
+const errorEl = document.getElementById('error');
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1a1a);
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(0, 0, 4);
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+// 环境光(让 PBR 材质有反射)
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+// 灯光
+const ambient = new THREE.AmbientLight(0xffffff, 0.3);
+scene.add(ambient);
+const dir = new THREE.DirectionalLight(0xffffff, 1.2);
+dir.position.set(5, 5, 5);
+scene.add(dir);
+
+// 轨道控制器
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 1.0;
+
+// 加载 GLB
+const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+const loader = new GLTFLoader();
+loader.load(
+  './mask.glb',
+  (gltf) => {
+    const model = gltf.scene;
+
+    // 归一化:计算 bbox,居中 + 等比缩放到合适大小
+    const box = new THREE.Box3().setFromObject(model);
+    const size = new THREE.Vector3();
+    const center = new THREE.Vector3();
+    box.getSize(size);
+    box.getCenter(center);
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const scale = maxDim > 0 ? 2.5 / maxDim : 1;
+    model.scale.setScalar(scale);
+    model.position.sub(center.multiplyScalar(scale));
+
+    scene.add(model);
+    loading.style.display = 'none';
+    console.log('GLB 加载完成,size=', size);
+  },
+  (progress) => {
+    if (progress.total > 0) {
+      const pct = (progress.loaded / progress.total * 100).toFixed(1);
+      loading.textContent = `加载中... ${pct}%`;
+    }
+  },
+  (err) => {
+    loading.style.display = 'none';
+    errorEl.style.display = 'block';
+    errorEl.textContent = '加载失败: ' + (err.message || err) + '\n\n请通过 vite 启动此页面(npm run dev)以加载 GLB。';
+    console.error(err);
+  }
+);
+
+// 渲染循环
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>
